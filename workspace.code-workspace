@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "apps/web"
+		},
+		{
+			"path": "apps/workers"
+		}
+	],
+	"settings": {}
+}
