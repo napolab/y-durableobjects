@@ -5,8 +5,7 @@
     "deploy": "wrangler deploy --minify src/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint src",
-    "fmt": "biome format src --write",
-    "y-websocket": "HOST=localhost PORT=8787 y-websocket"
+    "fmt": "biome format src --write"
   },
   "dependencies": {
     "hono": "^3.12.11",

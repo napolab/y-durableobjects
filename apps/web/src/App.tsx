@@ -43,6 +43,8 @@ function Editor() {
     theme,
   };
 
+  console.log(import.meta.env.VITE_WSS_URL);
+
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <RichTextPlugin
@@ -64,8 +66,7 @@ function Editor() {
           yjsDocMap.set(id, doc);
 
           const provider = new WebsocketProvider(
-            "wss://worker.yjs.napochaan.dev",
-            // "ws://localhost:8787",
+            import.meta.env.PROD ? import.meta.env.VITE_WSS_URL : "ws://localhost:8787",
             id,
             doc,
           );

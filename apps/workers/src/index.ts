@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { HonoEnv } from "./types";
 import { cors } from "hono/cors";
-import { serveStatic } from "hono/cloudflare-workers"
+import { serveStatic } from "hono/cloudflare-workers";
 
 const app = new Hono<HonoEnv>();
 app.use("*", cors());
