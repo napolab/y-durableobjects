@@ -8,7 +8,11 @@
     "fmt": "biome format src --write"
   },
   "dependencies": {
-    "hono": "^3.11.11"
+    "hono": "^3.11.11",
+    "lib0": "^0.2.88",
+    "y-protocols": "^1.0.6",
+    "y-websocket": "^1.5.1",
+    "yjs": "^13.6.10"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.4.1",
