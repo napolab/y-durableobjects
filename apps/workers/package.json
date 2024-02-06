@@ -1,14 +1,15 @@
 {
-  "name": "workers",
+  "name": "yjs-workers",
   "scripts": {
-    "dev": "wrangler dev src/index.ts",
+    "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify src/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint src",
-    "fmt": "biome format src --write"
+    "fmt": "biome format src --write",
+    "y-websocket": "HOST=localhost PORT=8787 y-websocket"
   },
   "dependencies": {
-    "hono": "^3.11.11",
+    "hono": "^3.12.11",
     "lib0": "^0.2.88",
     "y-protocols": "^1.0.6",
     "y-websocket": "^1.5.1",
@@ -17,6 +18,6 @@
   "devDependencies": {
     "@biomejs/biome": "^1.4.1",
     "@cloudflare/workers-types": "^4.20231218.0",
-    "wrangler": "^3.22.0"
+    "wrangler": "^3.26.0"
   }
 }

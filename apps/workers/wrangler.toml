@@ -1,4 +1,4 @@
-name = "workers"
+name = "yjs-workers"
 compatibility_date = "2023-01-01"
 workers_dev=false
 main="src/index.ts"

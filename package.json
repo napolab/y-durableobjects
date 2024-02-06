@@ -2,17 +2,16 @@
   "name": "yjs-worker",
   "version": "0.0.0",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "turbo dev",
     "fmt": "turbo fmt",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck"
   },
   "author": "naporin0624",
-  "packageManager": "pnpm@8.13.1",
-  "engines": {
-    "pnpm": ">=8.13.1"
-  },
   "devDependencies": {
     "turbo": "^1.11.2"
-  }
+  },
+  "workspaces": [
+    "apps/*"
+  ]
 }

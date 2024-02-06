@@ -1,14 +1,16 @@
 {
-	"folders": [
-		{
-			"path": "."
-		},
-		{
-			"path": "apps/web"
-		},
-		{
-			"path": "apps/workers"
-		}
-	],
-	"settings": {}
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "apps/web"
+    },
+    {
+      "path": "apps/workers"
+    }
+  ],
+  "settings": {
+    "typescript.tsdk": "web/node_modules/typescript/lib"
+  }
 }
