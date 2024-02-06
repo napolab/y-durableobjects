@@ -4,7 +4,6 @@
     "indentStyle": "space"
   },
   "linter": {
-    "rules": {
-    }
+    "rules": {}
   }
 }

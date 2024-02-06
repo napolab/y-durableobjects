@@ -12,46 +12,45 @@ const messageSync = 0;
 const messageAwareness = 1;
 
 type Changes = {
-  added: Array<number>
-  updated: Array<number>
-  removed: Array<number>
-}
+  added: Array<number>;
+  updated: Array<number>;
+  removed: Array<number>;
+};
 
 class WSSharedDoc extends Doc {
-  readonly conns = new Map<WebSocket, Set<unknown>>()
-  readonly awareness = new Awareness(this)
+  readonly conns = new Map<WebSocket, Set<unknown>>();
+  readonly awareness = new Awareness(this);
 
-  constructor(private readonly name: string, gc = true) {
-    super({ gc })
-    this.awareness.setLocalState(null)
+  constructor(
+    private readonly name: string,
+    gc = true,
+  ) {
+    super({ gc });
+    this.awareness.setLocalState(null);
     this.awareness.on("update", (changes: Changes) => {
-      this.awarenessChangeHandler(changes)
-    })
+      this.awarenessChangeHandler(changes);
+    });
     this.on("update", (update: Uint8Array) => {
-      const encoder = createEncoder()
-      writeVarUint(encoder, messageSync)
-      writeUpdate(encoder, update)
-      const message = toUint8Array(encoder)
-      this.sendMessage(message)
-    })
+      const encoder = createEncoder();
+      writeVarUint(encoder, messageSync);
+      writeUpdate(encoder, update);
+      const message = toUint8Array(encoder);
+      this.sendMessage(message);
+    });
   }
 
   private awarenessChangeHandler({ added, updated, removed }: Changes) {
-    const changedClients = [...added, ...updated, ...removed]
-    const encoder = createEncoder()
-    writeVarUint(encoder, messageAwareness)
-    writeVarUint8Array(
-      encoder,
-      encodeAwarenessUpdate(this.awareness, changedClients, this.awareness.states)
-    )
-    const buff = toUint8Array(encoder)
-    this.sendMessage(buff)
-
+    const changedClients = [...added, ...updated, ...removed];
+    const encoder = createEncoder();
+    writeVarUint(encoder, messageAwareness);
+    writeVarUint8Array(encoder, encodeAwarenessUpdate(this.awareness, changedClients, this.awareness.states));
+    const buff = toUint8Array(encoder);
+    this.sendMessage(buff);
   }
 
   private sendMessage(message: Uint8Array) {
     for (const [ws, _] of this.conns) {
-      ws.send(message)
+      ws.send(message);
     }
   }
 }
@@ -59,18 +58,21 @@ class WSSharedDoc extends Doc {
 export class YjsProvider implements DurableObject {
   private sessions: Set<WebSocket>;
   private app = new Hono<HonoEnv>();
-  private docs = new Map()
-  private doc: WSSharedDoc
+  private docs = new Map();
+  private doc: WSSharedDoc;
 
-  constructor(private readonly state: DurableObjectState, private readonly env: Bindings) {
+  constructor(
+    private readonly state: DurableObjectState,
+    private readonly env: Bindings,
+  ) {
     this.sessions = new Set(this.state.getWebSockets());
-    this.doc = this.getYDoc(state.id.toString(), true)
+    this.doc = this.getYDoc(state.id.toString(), true);
 
     for (const ws of this.sessions) {
-      this.doc.conns.set(ws, new Set())
+      this.doc.conns.set(ws, new Set());
     }
 
-    this.setup()
+    this.setup();
 
     this.app.get("/", upgrade, async (c) => {
       const pair = new WebSocketPair();
@@ -79,7 +81,7 @@ export class YjsProvider implements DurableObject {
 
       this.state.acceptWebSocket(server);
       this.sessions.add(server);
-      this.doc.conns.set(server, new Set())
+      this.doc.conns.set(server, new Set());
 
       return new Response(null, { webSocket: client, status: 101 });
     });
@@ -90,35 +92,31 @@ export class YjsProvider implements DurableObject {
 
   private getYDoc(docname: string, gc = true) {
     return setIfUndefined(this.docs, docname, () => {
-      const ydoc = new WSSharedDoc(docname, gc)
-      this.docs.set(docname, ydoc)
-      return ydoc
-    })
+      const ydoc = new WSSharedDoc(docname, gc);
+      this.docs.set(docname, ydoc);
+      return ydoc;
+    });
   }
 
   private setup() {
-    const encoder = createEncoder()
-    writeVarUint(encoder, messageSync)
-    this.send(toUint8Array(encoder))
+    const encoder = createEncoder();
+    writeVarUint(encoder, messageSync);
+    this.send(toUint8Array(encoder));
 
-    const awarenessStates = this.doc.awareness.getStates()
+    const awarenessStates = this.doc.awareness.getStates();
     if (awarenessStates.size > 0) {
-      writeVarUint(encoder, messageAwareness)
+      writeVarUint(encoder, messageAwareness);
       writeVarUint8Array(
         encoder,
-        encodeAwarenessUpdate(
-          this.doc.awareness,
-          Array.from(awarenessStates.keys()),
-          this.doc.awareness.states
-        )
-      )
-      this.send(toUint8Array(encoder))
+        encodeAwarenessUpdate(this.doc.awareness, Array.from(awarenessStates.keys()), this.doc.awareness.states),
+      );
+      this.send(toUint8Array(encoder));
     }
   }
 
   private send(message: Uint8Array) {
     for (const ws of this.sessions) {
-      ws.send(message)
+      ws.send(message);
     }
   }
 
@@ -126,30 +124,29 @@ export class YjsProvider implements DurableObject {
     if (!(message instanceof ArrayBuffer)) return;
 
     try {
-      const encoder = createEncoder()
-      const decoder = createDecoder(new Uint8Array(message))
-      const messageType = readVarUint(decoder)
+      const encoder = createEncoder();
+      const decoder = createDecoder(new Uint8Array(message));
+      const messageType = readVarUint(decoder);
 
       switch (messageType) {
         case messageSync: {
-          writeVarUint(encoder, messageSync)
-          readSyncMessage(decoder, encoder, this.doc, ws)
+          writeVarUint(encoder, messageSync);
+          readSyncMessage(decoder, encoder, this.doc, ws);
 
           if (length(encoder) > 1) {
-            this.send(toUint8Array(encoder))
+            this.send(toUint8Array(encoder));
           }
-          break
+          break;
         }
         case messageAwareness: {
-          applyAwarenessUpdate(this.doc.awareness, readVarUint8Array(decoder), ws)
-          break
+          applyAwarenessUpdate(this.doc.awareness, readVarUint8Array(decoder), ws);
+          break;
         }
       }
     } catch (e) {
-      console.error(e)
-      this.doc.emit("error", [e])
+      console.error(e);
+      this.doc.emit("error", [e]);
     }
-
   }
 
   webSocketError(ws: WebSocket, error: unknown): void | Promise<void> {

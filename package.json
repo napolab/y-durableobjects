@@ -9,6 +9,7 @@
   },
   "author": "naporin0624",
   "devDependencies": {
+    "@biomejs/biome": "^1.5.3",
     "turbo": "^1.11.2"
   },
   "workspaces": [
