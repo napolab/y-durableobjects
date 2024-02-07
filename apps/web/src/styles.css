@@ -7,3 +7,16 @@ body {
   padding: 1em;
   box-sizing: border-box;
 }
+
+li {
+  display: list-item;
+}
+ul {
+  list-style-type: disc;
+  list-style-position: inside;
+}
+
+.editor {
+  padding: 1em;
+  min-height: 64px;
+}
