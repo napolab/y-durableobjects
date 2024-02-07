@@ -2,7 +2,7 @@ import { Bindings, HonoEnv } from "../types";
 import { Hono } from "hono";
 import { upgrade } from "../middleware";
 import { WSSharedDoc } from "../ws-share-doc";
-import { applyUpdate, encodeStateAsUpdate } from "yjs";
+import { applyUpdate, decodeSnapshot, encodeStateAsUpdate, getTypeChildren } from "yjs";
 import { fromUint8Array, toUint8Array } from "js-base64";
 
 export class YjsProvider implements DurableObject {
@@ -14,8 +14,9 @@ export class YjsProvider implements DurableObject {
     private readonly state: DurableObjectState,
     private readonly env: Bindings,
   ) {
-    state.blockConcurrencyWhile(async () => {
-      const encoded = await state.storage.get<string>("doc");
+    console.log("initialize YjsProvider");
+    this.state.blockConcurrencyWhile(async () => {
+      const encoded = await this.state.storage.get<string>("doc");
       if (encoded !== undefined) {
         applyUpdate(this.doc, toUint8Array(encoded));
       }
@@ -62,14 +63,15 @@ export class YjsProvider implements DurableObject {
   webSocketError(ws: WebSocket, error: unknown): void | Promise<void> {
     console.error("WebSocket error:", error);
 
-    const dispose = this.sessions.get(ws);
-    dispose?.();
-    this.sessions.delete(ws);
+    this.closeConnection(ws);
   }
 
   webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): void | Promise<void> {
     console.log("WebSocket closed:", code, reason, wasClean);
+    this.closeConnection(ws);
+  }
 
+  private closeConnection(ws: WebSocket) {
     const dispose = this.sessions.get(ws);
     dispose?.();
     this.sessions.delete(ws);
@@ -77,9 +79,12 @@ export class YjsProvider implements DurableObject {
     if (this.sessions.size < 1) {
       const state = encodeStateAsUpdate(this.doc);
       const encoded = fromUint8Array(state);
-
       this.state.storage.put("doc", encoded);
-      console.log("cleanup", encoded);
+
+      const content = decodeSnapshot(state);
+      this.state.storage.put("content", content);
+
+      console.log("cleanup", encoded.length, content);
     }
   }
 }
