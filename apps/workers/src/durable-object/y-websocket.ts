@@ -2,7 +2,7 @@ import { Bindings, HonoEnv } from "../types";
 import { Hono } from "hono";
 import { upgrade } from "../middleware";
 import { WSSharedDoc } from "../ws-share-doc";
-import { applyUpdate, decodeSnapshot, encodeStateAsUpdate, getTypeChildren } from "yjs";
+import { XmlText, applyUpdate, decodeSnapshot, encodeStateAsUpdate, getTypeChildren } from "yjs";
 import { fromUint8Array, toUint8Array } from "js-base64";
 
 export class YjsProvider implements DurableObject {
@@ -43,6 +43,10 @@ export class YjsProvider implements DurableObject {
 
       return new Response(null, { webSocket: client, status: 101 });
     });
+
+    this.app.get("/text", async (c) => {
+      //
+    });
   }
 
   fetch(request: Request): Response | Promise<Response> {
@@ -72,19 +76,21 @@ export class YjsProvider implements DurableObject {
   }
 
   private closeConnection(ws: WebSocket) {
-    const dispose = this.sessions.get(ws);
-    dispose?.();
-    this.sessions.delete(ws);
+    try {
+      const dispose = this.sessions.get(ws);
+      dispose?.();
+      this.sessions.delete(ws);
+      console.log("connection count", this.sessions.size);
 
-    if (this.sessions.size < 1) {
-      const state = encodeStateAsUpdate(this.doc);
-      const encoded = fromUint8Array(state);
-      this.state.storage.put("doc", encoded);
+      if (this.sessions.size < 1) {
+        const state = encodeStateAsUpdate(this.doc);
+        const encoded = fromUint8Array(state);
+        this.state.storage.put("doc", encoded);
 
-      const content = decodeSnapshot(state);
-      this.state.storage.put("content", content);
-
-      console.log("cleanup", encoded.length, content);
+        console.log("cleanup");
+      }
+    } catch (e) {
+      console.error(e);
     }
   }
 }

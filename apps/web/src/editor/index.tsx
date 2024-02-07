@@ -29,12 +29,7 @@ const Editor = () => {
       <TablePlugin />
       <TabIndentationPlugin />
       <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
-      <CollaborationPlugin
-        id={id}
-        username={crypto.randomUUID()}
-        providerFactory={providerFactory}
-        shouldBootstrap
-      />
+      <CollaborationPlugin id={id} username={crypto.randomUUID()} providerFactory={providerFactory} shouldBootstrap />
     </LexicalComposer>
   );
 };
