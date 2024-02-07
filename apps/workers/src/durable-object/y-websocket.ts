@@ -41,11 +41,8 @@ export class YjsProvider implements DurableObject {
 
       return new Response(null, { webSocket: client, status: 101 });
     });
-
-    this.app.get("/content", async (c) => {
-      return c.json({}, 200);
-    });
   }
+
   fetch(request: Request): Response | Promise<Response> {
     return this.app.request(request, undefined, this.env);
   }
