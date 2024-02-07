@@ -2,6 +2,8 @@ import { Bindings, HonoEnv } from "../types";
 import { Hono } from "hono";
 import { upgrade } from "../middleware";
 import { WSSharedDoc } from "../ws-share-doc";
+import { applyUpdate, encodeStateAsUpdate } from "yjs";
+import { fromUint8Array, toUint8Array } from "js-base64";
 
 export class YjsProvider implements DurableObject {
   private app = new Hono<HonoEnv>();
@@ -13,11 +15,10 @@ export class YjsProvider implements DurableObject {
     private readonly env: Bindings,
   ) {
     state.blockConcurrencyWhile(async () => {
-      const cache = await state.storage.get<WSSharedDoc>("doc");
-      console.log(this.doc instanceof WSSharedDoc, cache === this.doc, this.doc?.guid, this.doc?.clientID);
-
-      this.doc = cache ?? this.doc;
-      console.log(cache instanceof WSSharedDoc, cache === this.doc, cache?.guid, cache?.clientID);
+      const encoded = await state.storage.get<string>("doc");
+      if (encoded !== undefined) {
+        applyUpdate(this.doc, toUint8Array(encoded));
+      }
 
       for (const ws of this.state.getWebSockets()) {
         const s = this.doc.subscribe((message) => {
@@ -59,21 +60,26 @@ export class YjsProvider implements DurableObject {
   }
 
   webSocketError(ws: WebSocket, error: unknown): void | Promise<void> {
+    console.error("WebSocket error:", error);
+
     const dispose = this.sessions.get(ws);
     dispose?.();
     this.sessions.delete(ws);
-
-    console.error("WebSocket error:", error);
   }
 
   webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): void | Promise<void> {
+    console.log("WebSocket closed:", code, reason, wasClean);
+
     const dispose = this.sessions.get(ws);
     dispose?.();
     this.sessions.delete(ws);
 
     if (this.sessions.size < 1) {
-      this.state.storage.put("doc", this.doc);
-      console.log("cleanup");
+      const state = encodeStateAsUpdate(this.doc);
+      const encoded = fromUint8Array(state);
+
+      this.state.storage.put("doc", encoded);
+      console.log("cleanup", encoded);
     }
   }
 }
