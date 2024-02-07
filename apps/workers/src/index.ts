@@ -6,9 +6,9 @@ import { serveStatic } from "hono/cloudflare-workers";
 const app = new Hono<HonoEnv>();
 app.use("*", cors());
 
-app.get("/", async (c) => {
+app.get("/editor/:eid", async (c) => {
   // id には room ごとの id を入れるようにする
-  const id = c.env.YJS_PROVIDER.idFromName("id");
+  const id = c.env.YJS_PROVIDER.idFromName(c.req.param("eid"));
   const obj = c.env.YJS_PROVIDER.get(id);
   // get websocket connection
   const url = new URL("/", c.req.url);

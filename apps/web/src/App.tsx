@@ -20,6 +20,8 @@ import { theme } from "./theme";
 import { TRANSFORMERS } from "@lexical/markdown";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 
+const WS_URL = import.meta.env.PROD ? import.meta.env.VITE_WSS_URL : "ws://localhost:8787";
+
 function Editor() {
   const initialConfig: InitialConfigType = {
     editorState: null,
@@ -43,8 +45,6 @@ function Editor() {
     theme,
   };
 
-  console.log(import.meta.env.VITE_WSS_URL);
-
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <RichTextPlugin
@@ -59,17 +59,13 @@ function Editor() {
       <TabIndentationPlugin />
       <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
       <CollaborationPlugin
-        id=""
+        id="1"
         username={crypto.randomUUID()}
         providerFactory={(id, yjsDocMap) => {
           const doc = new Y.Doc();
           yjsDocMap.set(id, doc);
 
-          const provider = new WebsocketProvider(
-            import.meta.env.PROD ? import.meta.env.VITE_WSS_URL : "ws://localhost:8787",
-            id,
-            doc,
-          );
+          const provider = new WebsocketProvider(new URL("/editor", WS_URL).href, id, doc);
 
           // 公式通りやると型エラーになる調査する
           return provider as unknown as ReturnType<ComponentProps<typeof CollaborationPlugin>["providerFactory"]>;
