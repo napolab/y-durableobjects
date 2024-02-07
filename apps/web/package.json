@@ -12,6 +12,7 @@
     "fmt": "biome format src --write"
   },
   "dependencies": {
+    "@acab/reset.css": "^0.8.0",
     "@lexical/code": "^0.13.1",
     "@lexical/link": "^0.13.1",
     "@lexical/list": "^0.13.1",
