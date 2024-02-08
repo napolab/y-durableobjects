@@ -1,5 +1,5 @@
 export type Bindings = {
-  YJS_PROVIDER: DurableObjectNamespace;
+  Y_WEBSOCKET: DurableObjectNamespace;
 };
 type Variables = {};
 

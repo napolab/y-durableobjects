@@ -1,11 +1,11 @@
-import { Bindings, HonoEnv } from "../types";
+import { Bindings, HonoEnv } from "./types";
 import { Hono } from "hono";
-import { upgrade } from "../middleware";
-import { WSSharedDoc } from "../ws-share-doc";
-import { XmlText, applyUpdate, decodeSnapshot, encodeStateAsUpdate, getTypeChildren } from "yjs";
+import { upgrade } from "./middleware";
+import { WSSharedDoc } from "./ws-share-doc";
+import { applyUpdate, encodeStateAsUpdate } from "yjs";
 import { fromUint8Array, toUint8Array } from "js-base64";
 
-export class YjsProvider implements DurableObject {
+export class YWebsocket implements DurableObject {
   private app = new Hono<HonoEnv>();
   private doc = new WSSharedDoc();
   private sessions = new Map<WebSocket, () => void>();
@@ -14,7 +14,7 @@ export class YjsProvider implements DurableObject {
     private readonly state: DurableObjectState,
     private readonly env: Bindings,
   ) {
-    console.log("initialize YjsProvider");
+    console.log("initialize YWebsocket");
     this.state.blockConcurrencyWhile(async () => {
       const encoded = await this.state.storage.get<string>("doc");
       if (encoded !== undefined) {
@@ -43,13 +43,9 @@ export class YjsProvider implements DurableObject {
 
       return new Response(null, { webSocket: client, status: 101 });
     });
-
-    this.app.get("/text", async (c) => {
-      //
-    });
   }
 
-  fetch(request: Request): Response | Promise<Response> {
+  async fetch(request: Request): Promise<Response> {
     return this.app.request(request, undefined, this.env);
   }
 
