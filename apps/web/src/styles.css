@@ -16,7 +16,30 @@ ul {
   list-style-position: inside;
 }
 
+.root button {
+  margin-bottom: 24px;
+}
+
 .editor {
   padding: 1em;
   min-height: 64px;
+  border: solid 1px #2d2d2d;
+  border-radius: 0.25em;
+}
+.editor:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(45, 45, 45, 0.5);
+}
+
+button {
+  padding: 0.5em 1em;
+  border: none;
+  border-radius: 0.25em;
+  background-color: #2d2d2d;
+  color: #f0f0f0;
+  cursor: pointer;
+}
+button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #2d2d2d;
 }

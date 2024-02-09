@@ -7,30 +7,53 @@ import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
+import { EditorRefPlugin } from "@lexical/react/LexicalEditorRefPlugin";
 import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary";
 import { TRANSFORMERS } from "@lexical/markdown";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { providerFactory } from "./provider";
 import { initialConfig } from "./config";
+import { useCallback, useRef } from "react";
+import { LexicalEditor } from "lexical";
+import { $generateHtmlFromNodes } from "@lexical/html";
 
 const Editor = () => {
   const id = "1";
+  const ref = useRef<LexicalEditor>(null);
+
+  const handleExportHTML = useCallback(async () => {
+    const editor = ref.current;
+    if (editor === null) return;
+    const code = await new Promise<string>((resolve) => {
+      editor.getEditorState().read(() => {
+        resolve($generateHtmlFromNodes(editor, null));
+      });
+    });
+    const a = document.createElement("a");
+    a.download = "editor.html";
+    a.href = URL.createObjectURL(new Blob([code], { type: "text/html" }));
+    a.click();
+  }, []);
 
   return (
-    <LexicalComposer initialConfig={initialConfig}>
-      <RichTextPlugin
-        contentEditable={<ContentEditable className="editor" />}
-        placeholder={<div>Enter some text...</div>}
-        ErrorBoundary={LexicalErrorBoundary}
-      />
-      <HistoryPlugin />
-      <ListPlugin />
-      <LinkPlugin />
-      <TablePlugin />
-      <TabIndentationPlugin />
-      <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
-      <CollaborationPlugin id={id} username={crypto.randomUUID()} providerFactory={providerFactory} shouldBootstrap />
-    </LexicalComposer>
+    <div className="root">
+      <button onClick={handleExportHTML}>Export HTML</button>
+      <LexicalComposer initialConfig={initialConfig}>
+        <RichTextPlugin
+          contentEditable={<ContentEditable className="editor" />}
+          placeholder={<div>Enter some text...</div>}
+          ErrorBoundary={LexicalErrorBoundary}
+        />
+        <EditorRefPlugin editorRef={ref} />
+        <HistoryPlugin />
+        <ListPlugin />
+        <LinkPlugin />
+        <TablePlugin />
+        <TabIndentationPlugin />
+        <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
+        <CollaborationPlugin id={id} username={crypto.randomUUID()} providerFactory={providerFactory} shouldBootstrap />
+      </LexicalComposer>
+    </div>
   );
 };
 
