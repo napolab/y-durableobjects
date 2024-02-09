@@ -4,7 +4,6 @@ import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { CodeNode, CodeHighlightNode } from "@lexical/code";
-import { theme } from "./theme";
 
 export const initialConfig: InitialConfigType = {
   editorState: null,
@@ -25,5 +24,4 @@ export const initialConfig: InitialConfigType = {
   onError: (error: Error) => {
     throw error;
   },
-  theme,
 };

@@ -13,15 +13,18 @@ import { TRANSFORMERS } from "@lexical/markdown";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { providerFactory } from "./provider";
 import { initialConfig } from "./config";
-import { useCallback, useRef } from "react";
+import { FC, useCallback, useRef, useState } from "react";
 import { LexicalEditor } from "lexical";
 import { $generateHtmlFromNodes } from "@lexical/html";
 
-const Editor = () => {
-  const id = "1";
+type Props = {
+  id: string;
+};
+
+const Editor: FC<Props> = ({ id }) => {
   const ref = useRef<LexicalEditor>(null);
 
-  const handleExportHTML = useCallback(async () => {
+  const copyClipboard = useCallback(async () => {
     const editor = ref.current;
     if (editor === null) return;
     const code = await new Promise<string>((resolve) => {
@@ -29,15 +32,13 @@ const Editor = () => {
         resolve($generateHtmlFromNodes(editor, null));
       });
     });
-    const a = document.createElement("a");
-    a.download = "editor.html";
-    a.href = URL.createObjectURL(new Blob([code], { type: "text/html" }));
-    a.click();
+    await navigator.clipboard.writeText(code);
+    alert("HTML copied to clipboard");
   }, []);
 
   return (
     <div className="root">
-      <button onClick={handleExportHTML}>Export HTML</button>
+      <button onClick={copyClipboard}>Copy Export Editor</button>
       <LexicalComposer initialConfig={initialConfig}>
         <RichTextPlugin
           contentEditable={<ContentEditable className="editor" />}

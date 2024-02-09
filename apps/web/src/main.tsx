@@ -6,6 +6,6 @@ import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <Editor />
+    <Editor id="1" />
   </React.StrictMode>,
 );
