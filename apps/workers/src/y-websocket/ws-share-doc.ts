@@ -12,14 +12,14 @@ type Changes = {
   updated: Array<number>;
   removed: Array<number>;
 };
-type Subscriber = (message: Uint8Array) => void;
+type Listener<T> = (message: T) => void;
 type Unsubscribe = () => void;
-interface Observable {
-  subscribe(subscriber: Subscriber): Unsubscribe;
+interface Notification<T> {
+  notify(cb: Listener<T>): Unsubscribe;
 }
 
-export class WSSharedDoc extends Doc implements Observable {
-  private subscribers: Set<Subscriber> = new Set();
+export class WSSharedDoc extends Doc implements Notification<Uint8Array> {
+  private listeners: Set<Listener<Uint8Array>> = new Set();
   readonly awareness = new Awareness(this);
 
   constructor(gc = true) {
@@ -35,15 +35,7 @@ export class WSSharedDoc extends Doc implements Observable {
     });
   }
 
-  subscribe(subscriber: Subscriber) {
-    this.subscribers.add(subscriber);
-
-    return () => {
-      this.subscribers.delete(subscriber);
-    };
-  }
-
-  onMessage(ws: WebSocket, message: Uint8Array) {
+  update(message: Uint8Array) {
     const encoder = createEncoder();
     const decoder = createDecoder(new Uint8Array(message));
     const messageType = readVarUint(decoder);
@@ -51,31 +43,40 @@ export class WSSharedDoc extends Doc implements Observable {
     switch (messageType) {
       case messageSync: {
         writeVarUint(encoder, messageSync);
-        readSyncMessage(decoder, encoder, this, ws);
+        readSyncMessage(decoder, encoder, this, null);
 
         if (length(encoder) > 1) {
-          this.notify(toUint8Array(encoder));
+          this._notify(toUint8Array(encoder));
         }
         break;
       }
       case messageAwareness: {
-        applyAwarenessUpdate(this.awareness, readVarUint8Array(decoder), ws);
+        applyAwarenessUpdate(this.awareness, readVarUint8Array(decoder), null);
         break;
       }
     }
   }
 
+  notify(listener: Listener<Uint8Array>) {
+    this.listeners.add(listener);
+
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
   private setup() {
     const encoder = createEncoder();
     writeVarUint(encoder, messageSync);
-    this.notify(toUint8Array(encoder));
+    this._notify(toUint8Array(encoder));
 
     const awarenessStates = this.awareness.getStates();
     if (awarenessStates.size > 0) {
       writeVarUint(encoder, messageAwareness);
       const message = encodeAwarenessUpdate(this.awareness, Array.from(awarenessStates.keys()), this.awareness.states);
       writeVarUint8Array(encoder, message);
-      this.notify(toUint8Array(encoder));
+
+      this._notify(toUint8Array(encoder));
     }
   }
 
@@ -83,22 +84,20 @@ export class WSSharedDoc extends Doc implements Observable {
     const encoder = createEncoder();
     writeVarUint(encoder, messageSync);
     writeUpdate(encoder, update);
-    const message = toUint8Array(encoder);
 
-    this.notify(message);
+    this._notify(toUint8Array(encoder));
   }
   private awarenessChangeHandler({ added, updated, removed }: Changes) {
     const changedClients = [...added, ...updated, ...removed];
     const encoder = createEncoder();
     writeVarUint(encoder, messageAwareness);
     writeVarUint8Array(encoder, encodeAwarenessUpdate(this.awareness, changedClients, this.awareness.states));
-    const buff = toUint8Array(encoder);
 
-    this.notify(buff);
+    this._notify(toUint8Array(encoder));
   }
 
-  private notify(message: Uint8Array) {
-    for (const subscriber of this.subscribers) {
+  private _notify(message: Uint8Array) {
+    for (const subscriber of this.listeners) {
       subscriber(message);
     }
   }
