@@ -13,7 +13,7 @@ import { TRANSFORMERS } from "@lexical/markdown";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { providerFactory } from "./provider";
 import { initialConfig } from "./config";
-import { FC, useCallback, useRef, useState } from "react";
+import { FC, useCallback, useRef } from "react";
 import { LexicalEditor } from "lexical";
 import { $generateHtmlFromNodes } from "@lexical/html";
 
@@ -38,7 +38,9 @@ const Editor: FC<Props> = ({ id }) => {
 
   return (
     <div className="root">
-      <button onClick={copyClipboard}>Copy Export Editor</button>
+      <button type="button" onClick={copyClipboard}>
+        Copy Export Editor
+      </button>
       <LexicalComposer initialConfig={initialConfig}>
         <RichTextPlugin
           contentEditable={<ContentEditable className="editor" />}

@@ -1,10 +1,15 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*", "**/wrangler.toml"],
   "pipeline": {
     "fmt": {},
     "lint": {},
     "dev": {
-      "cache": false
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "outputs": ["dist", "build", "lib"]
     }
   }
 }

@@ -5,7 +5,8 @@
     "dev": "turbo dev",
     "fmt": "turbo fmt",
     "lint": "turbo lint",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "build": "turbo build"
   },
   "author": "naporin0624",
   "devDependencies": {
