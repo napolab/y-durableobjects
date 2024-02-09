@@ -39,7 +39,7 @@ const Editor: FC<Props> = ({ id }) => {
   return (
     <div className="root">
       <button type="button" onClick={copyClipboard}>
-        Copy Export Editor
+        Copy HTML
       </button>
       <LexicalComposer initialConfig={initialConfig}>
         <RichTextPlugin
