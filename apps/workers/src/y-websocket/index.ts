@@ -4,10 +4,16 @@ import { WSSharedDoc } from "./ws-share-doc";
 import { applyUpdate, encodeStateAsUpdate } from "yjs";
 import { fromUint8Array, toUint8Array } from "js-base64";
 
+type Session = {
+  ws: WebSocket;
+  dispose: () => void;
+  alive: boolean;
+}
+
 export class YWebsocket<T extends Env> implements DurableObject {
   private app = new Hono<T>();
   private doc = new WSSharedDoc();
-  private sessions = new Map<WebSocket, () => void>();
+  private sessions = new Map<WebSocket, Session>();
   private readonly yDocKey = "doc";
 
   constructor(
@@ -41,14 +47,30 @@ export class YWebsocket<T extends Env> implements DurableObject {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    if (!(message instanceof ArrayBuffer)) return;
+    const session = this.sessions.get(ws);
 
-    try {
-      this.doc.update(new Uint8Array(message));
-    } catch (e) {
-      console.error(e);
-      this.doc.emit("error", [e]);
+    if (typeof message === "string") {
+      const data = JSON.parse(message);
+      switch (data.type) {
+        case "pong": {
+          if (session !== undefined) {
+            this.sessions.set(ws, {
+              ...session,
+              alive: true,
+            })
+          }
+        }
+      }
     }
+
+    if ((message instanceof ArrayBuffer)) {
+      try {
+        this.doc.update(new Uint8Array(message));
+      } catch (e) {
+        console.error(e);
+        this.doc.emit("error", [e]);
+      }
+    };
   }
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
@@ -66,16 +88,38 @@ export class YWebsocket<T extends Env> implements DurableObject {
   }
 
   private connect(ws: WebSocket) {
+    ws.send(JSON.stringify({ type: "ping" }))
+
+    const id = setInterval(() => {
+      const session = this.sessions.get(ws);
+
+      if (session?.alive === false) {
+        ws.close(1000, "ping timeout")
+        clearInterval(id);
+        return
+      }
+
+      ws.send(JSON.stringify({ type: "ping" }))
+      this.sessions.set(ws, {
+        ...session,
+        alive: false,
+      });
+    }, 30000)
+
     const s = this.doc.notify((message) => {
       ws.send(message);
     });
-    this.sessions.set(ws, s);
+    this.sessions.set(ws, {
+      ws,
+      dispose: s,
+      alive: false,
+    });
   }
 
   private async disconnect(ws: WebSocket) {
     try {
-      const dispose = this.sessions.get(ws);
-      dispose?.();
+      const session = this.sessions.get(ws);
+      session?.dispose?.();
       this.sessions.delete(ws);
       console.log("connection count", this.sessions.size);
     } catch (e) {
