@@ -19,8 +19,8 @@ Ensure you have the latest version of Node.js installed on your machine.
 Clone the repository and install the dependencies:
 
 ```bash
-git clone https://github.com/napolab/yjs-worker
-cd yjs-worker
+git clone git@github.com:napolab/y-durableobjects.git
+cd y-durableobjects/example
 npm install
 ```
 
@@ -45,10 +45,3 @@ npm run dev
 ```
 
 This will emulate the Cloudflare Worker environment locally, allowing you to test the Yjs integration.
-
-## Future Plans
-
-- Implement ping/pong and describe behavior on close to ensure stable connections.
-- Improve the demo using Lexical for a more robust real-time collaborative editing experience.
-
-Contributions and feedback are welcome as we continue to enhance the capabilities of this demo.
