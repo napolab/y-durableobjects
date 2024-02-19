@@ -1,5 +1,6 @@
 {
-  "name": "yjs-workers",
+  "name": "workers",
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify src/index.ts",
@@ -7,17 +8,12 @@
     "lint": "biome lint src",
     "fmt": "biome format src --write"
   },
-  "dependencies": {
-    "hono": "^3.12.11",
-    "js-base64": "^3.7.6",
-    "lib0": "^0.2.88",
-    "y-protocols": "^1.0.6",
-    "y-websocket": "^1.5.1",
-    "yjs": "^13.6.10"
-  },
   "devDependencies": {
     "@biomejs/biome": "^1.4.1",
     "@cloudflare/workers-types": "^4.20231218.0",
     "wrangler": "^3.26.0"
+  },
+  "dependencies": {
+    "y-durableobjects": "file:../../.."
   }
 }

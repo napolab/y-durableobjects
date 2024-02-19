@@ -1,5 +1,5 @@
 export type Bindings = {
-  Y_WEBSOCKET: DurableObjectNamespace;
+  "Y_DURABLE_OBJECTS": DurableObjectNamespace;
 };
 
 export type HonoEnv = {

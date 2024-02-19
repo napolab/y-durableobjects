@@ -6,9 +6,8 @@ const app = new Hono<HonoEnv>();
 app.use("*", cors());
 
 app.get("/editor/:eid", async (c) => {
-  // id には room ごとの id を入れるようにする
-  const id = c.env.Y_WEBSOCKET.idFromName(c.req.param("eid"));
-  const obj = c.env.Y_WEBSOCKET.get(id);
+  const id = c.env.Y_DURABLE_OBJECTS.idFromName(c.req.param("eid"));
+  const obj = c.env.Y_DURABLE_OBJECTS.get(id);
 
   // get websocket connection
   const url = new URL("/", c.req.url);
@@ -21,4 +20,7 @@ app.get("/editor/:eid", async (c) => {
 });
 
 export default app;
-export * from "./y-websocket";
+export * from "y-durableobjects"
+
+
+

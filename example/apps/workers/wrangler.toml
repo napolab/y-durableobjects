@@ -4,8 +4,8 @@ workers_dev=false
 main="src/index.ts"
 
 [[durable_objects.bindings]]
-name = "Y_WEBSOCKET"
-class_name = "YWebsocket"
+name = "Y_DURABLE_OBJECTS"
+class_name = "YDurableObjects"
 
 [[migrations]]
 tag = "v1"
@@ -14,3 +14,7 @@ new_classes = ["YjsProvider"]
 [[migrations]]
 tag = "v2"
 renamed_classes = [{ from = "YjsProvider", to = "YWebsocket" }]
+
+[[migrations]]
+tag = "v3"
+renamed_classes = [{ from = "YWebsocket", to = "YDurableObjects" }]
