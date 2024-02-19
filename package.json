@@ -5,6 +5,17 @@
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.cts",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/napolab/y-durableobjects.git"
+  },
+  "bugs": {
+    "url": "https://github.com/napolab/y-durableobjects/issues"
+  },
   "exports": {
     ".": {
       "import": {
@@ -26,7 +37,8 @@
     "fmt": "npm-run-all -s fmt:*",
     "fmt:prettier": "prettier --write .",
     "fmt:eslint": "eslint . --ext .ts --fix",
-    "publint": "publint"
+    "publint": "publint",
+    "release": "changeset publish"
   },
   "author": "naporin0624",
   "files": [
