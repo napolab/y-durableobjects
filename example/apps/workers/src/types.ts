@@ -4,7 +4,6 @@ export type Bindings = {
 
 declare module "hono" {
   interface Env {
-
     Bindings: Bindings;
   }
 }
