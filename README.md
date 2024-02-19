@@ -124,4 +124,7 @@ app.get("/editor/:id", async (c) => {
 
   return new Response(null, { webSocket: res.webSocket, status: res.status });
 });
+
+export default app;
+export { YDurableObjects };
 ```
