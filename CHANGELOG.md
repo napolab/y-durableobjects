@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 0.1.2
+
+### Patch Changes
+
+- b574bbf: fix readme code
+
 ## 0.1.1
 
 ### Patch Changes
