@@ -1,16 +1,26 @@
-import { createEncoder, length, toUint8Array, writeVarUint, writeVarUint8Array } from "lib0/encoding";
 import { createDecoder, readVarUint, readVarUint8Array } from "lib0/decoding";
+import {
+  createEncoder,
+  length,
+  toUint8Array,
+  writeVarUint,
+  writeVarUint8Array,
+} from "lib0/encoding";
+import {
+  applyAwarenessUpdate,
+  Awareness,
+  encodeAwarenessUpdate,
+} from "y-protocols/awareness";
 import { readSyncMessage, writeUpdate } from "y-protocols/sync";
-import { applyAwarenessUpdate, Awareness, encodeAwarenessUpdate } from "y-protocols/awareness";
 import { Doc } from "yjs";
 
 const messageSync = 0;
 const messageAwareness = 1;
 
 type Changes = {
-  added: Array<number>;
-  updated: Array<number>;
-  removed: Array<number>;
+  added: number[];
+  updated: number[];
+  removed: number[];
 };
 type Listener<T> = (message: T) => void;
 type Unsubscribe = () => void;
@@ -19,7 +29,7 @@ interface Notification<T> {
 }
 
 export class WSSharedDoc extends Doc implements Notification<Uint8Array> {
-  private listeners: Set<Listener<Uint8Array>> = new Set();
+  private listeners = new Set<Listener<Uint8Array>>();
   readonly awareness = new Awareness(this);
 
   constructor(gc = true) {
@@ -73,7 +83,11 @@ export class WSSharedDoc extends Doc implements Notification<Uint8Array> {
     const awarenessStates = this.awareness.getStates();
     if (awarenessStates.size > 0) {
       writeVarUint(encoder, messageAwareness);
-      const message = encodeAwarenessUpdate(this.awareness, Array.from(awarenessStates.keys()), this.awareness.states);
+      const message = encodeAwarenessUpdate(
+        this.awareness,
+        Array.from(awarenessStates.keys()),
+        this.awareness.states,
+      );
       writeVarUint8Array(encoder, message);
 
       this._notify(toUint8Array(encoder));
@@ -91,7 +105,14 @@ export class WSSharedDoc extends Doc implements Notification<Uint8Array> {
     const changedClients = [...added, ...updated, ...removed];
     const encoder = createEncoder();
     writeVarUint(encoder, messageAwareness);
-    writeVarUint8Array(encoder, encodeAwarenessUpdate(this.awareness, changedClients, this.awareness.states));
+    writeVarUint8Array(
+      encoder,
+      encodeAwarenessUpdate(
+        this.awareness,
+        changedClients,
+        this.awareness.states,
+      ),
+    );
 
     this._notify(toUint8Array(encoder));
   }

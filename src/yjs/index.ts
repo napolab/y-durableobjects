@@ -1,10 +1,13 @@
-import { Env, Hono } from "hono";
-import { upgrade } from "../middleware";
-import { WSSharedDoc } from "./ws-share-doc";
-import { applyUpdate, encodeStateAsUpdate } from "yjs";
+import { Hono } from "hono";
 import { fromUint8Array, toUint8Array } from "js-base64";
+import { applyUpdate, encodeStateAsUpdate } from "yjs";
 
-export class YWebsocket<T extends Env> implements DurableObject {
+import { upgrade } from "../middleware";
+import { WSSharedDoc } from "../yjs/ws-share-doc";
+
+import type { Env } from "hono";
+
+export class YDurableObjects<T extends Env> implements DurableObject {
   private app = new Hono<T>();
   private doc = new WSSharedDoc();
   private sessions = new Map<WebSocket, () => void>();
@@ -14,8 +17,7 @@ export class YWebsocket<T extends Env> implements DurableObject {
     private readonly state: DurableObjectState,
     private readonly env: T["Bindings"],
   ) {
-    console.log("initialize YWebsocket");
-    this.state.blockConcurrencyWhile(async () => {
+    void this.state.blockConcurrencyWhile(async () => {
       await this.restoreYDoc();
 
       for (const ws of this.state.getWebSockets()) {
@@ -23,14 +25,13 @@ export class YWebsocket<T extends Env> implements DurableObject {
       }
     });
 
-    this.app.get("/", upgrade, async (c) => {
+    this.app.get("/", upgrade, async () => {
       const pair = new WebSocketPair();
       const client = pair[0];
       const server = pair[1];
 
       this.state.acceptWebSocket(server);
       this.connect(server);
-      console.log("new connection", this.sessions.size);
 
       return new Response(null, { webSocket: client, status: 101 });
     });
@@ -40,27 +41,25 @@ export class YWebsocket<T extends Env> implements DurableObject {
     return this.app.request(request, undefined, this.env);
   }
 
-  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+  async webSocketMessage(
+    ws: WebSocket,
+    message: string | ArrayBuffer,
+  ): Promise<void> {
     if (!(message instanceof ArrayBuffer)) return;
 
     try {
       this.doc.update(new Uint8Array(message));
     } catch (e) {
-      console.error(e);
       this.doc.emit("error", [e]);
     }
   }
 
-  async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
-    console.error("WebSocket error:", error);
-
+  async webSocketError(ws: WebSocket): Promise<void> {
     await this.disconnect(ws);
     await this.cleanup();
   }
 
-  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
-    console.log("WebSocket closed:", code, reason, wasClean);
-
+  async webSocketClose(ws: WebSocket): Promise<void> {
     await this.disconnect(ws);
     await this.cleanup();
   }
@@ -77,8 +76,8 @@ export class YWebsocket<T extends Env> implements DurableObject {
       const dispose = this.sessions.get(ws);
       dispose?.();
       this.sessions.delete(ws);
-      console.log("connection count", this.sessions.size);
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error(e);
     }
   }
@@ -86,7 +85,6 @@ export class YWebsocket<T extends Env> implements DurableObject {
   private async cleanup() {
     if (this.sessions.size < 2) {
       await this.storeYDoc();
-      console.log("cleanup");
     }
   }
 

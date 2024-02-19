@@ -1,54 +1,127 @@
-# Yjs on Cloudflare Workers with Durable Objects Demo
-
-This project demonstrates the integration of Yjs, a real-time collaboration framework, with Cloudflare Workers using Durable Objects, eliminating the dependency on Node.js. This setup is inspired by the `y-websocket` adapter and aims to provide a scalable and efficient solution for real-time collaborative applications.
+# y-durableobjects
 
 [![Yjs on Cloudflare Workers with Durable Objects Demo Movie](https://i.gyazo.com/e94637740dbb11fc5107b0cd0850326d.gif)](https://gyazo.com/e94637740dbb11fc5107b0cd0850326d)
 
-Demo: https://yjs.napochaan.dev/
+The `y-durableobjects` library is designed to facilitate real-time collaboration in Cloudflare Workers environment using Yjs and Durable Objects. It provides a straightforward way to integrate Yjs for decentralized, scalable real-time editing features.
 
-## Getting Started
+## Installation
 
-To get the demo running on your local environment, follow these steps:
-
-### Prerequisites
-
-Ensure you have the latest version of Node.js installed on your machine.
-
-### Installation
-
-Clone the repository and install the dependencies:
+To use `y-durableobjects`, you need to install the package along with `hono`, as it is a peer dependency.
 
 ```bash
-git clone https://github.com/napolab/yjs-worker
-cd yjs-worker
-npm install
+npm install y-durableobjects hono
 ```
 
-### Running the UI
-
-Navigate to the UI application directory and start the development server:
+or using yarn:
 
 ```bash
-cd apps/web
-npm run dev
+yarn add y-durableobjects hono
 ```
 
-This command will serve the UI on a local web server. Open your preferred web browser and navigate to the provided URL to interact with the UI.
-
-### Running the Server
-
-To start the server that includes the Cloudflare Worker with Durable Objects:
+or pnpm:
 
 ```bash
-cd apps/workers
-npm run dev
+pnpm add y-durableobjects hono
 ```
 
-This will emulate the Cloudflare Worker environment locally, allowing you to test the Yjs integration.
+Below is an updated section for your README, including the recommended `wrangler.toml` configuration for Durable Objects, followed by the new section providing guidance on configuring Durable Objects:
 
-## Future Plans
+---
 
-- Implement ping/pong and describe behavior on close to ensure stable connections.
-- Improve the demo using Lexical for a more robust real-time collaborative editing experience.
+## Configuring Durable Objects
 
-Contributions and feedback are welcome as we continue to enhance the capabilities of this demo.
+To use Durable Objects with `y-durableobjects`, include the following configuration in your `wrangler.toml` file. This setup is essential for defining the Durable Object bindings that your Cloudflare Worker will use.
+
+```toml
+name = "your-worker-name"
+main = "index.js"
+compatibility_date = "2021-10-01"
+
+account_id = "your-account-id"
+workers_dev = true
+route = ""
+zone_id = ""
+
+# Durable Objects binding
+[durable_objects]
+bindings = [
+  { name = "Y_DURABLE_OBJECTS", class_name = "YDurableObjects" }
+]
+
+# Add your KV Namespaces and other bindings here
+# [kv_namespaces]
+# ...
+
+# Your environment variables
+# [vars]
+# ...
+```
+
+### Configuration for Durable Objects
+
+To properly utilize Durable Objects, you need to configure bindings in your `wrangler.toml` file. This involves specifying the name of the Durable Object binding and the class name that represents your Durable Object. For detailed instructions on how to set up your `wrangler.toml` for Durable Objects, including setting up environment variables and additional resources, refer to [Cloudflare's Durable Objects documentation](https://developers.cloudflare.com/durable-objects/get-started/#5-configure-durable-object-bindings).
+
+This configuration ensures that your Cloudflare Worker can correctly instantiate and interact with Durable Objects, allowing `y-durableobjects` to manage real-time collaboration sessions.
+
+## Extending Hono with Bindings
+
+To integrate `y-durableobjects` with Hono, extend the `Env` interface to include the `Bindings` type for better type safety and IntelliSense support in your editor.
+
+```typescript
+export type Bindings = {
+  Y_DURABLE_OBJECTS: DurableObjectNamespace;
+};
+
+declare module "hono" {
+  interface Env {
+    Bindings: Bindings;
+  }
+}
+```
+
+This allows you to use `Y_DURABLE_OBJECTS` directly in your Hono application with full type support.
+
+## Usage
+
+### With Hono shorthand
+
+```typescript
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { YDurableObjects, yRoute } from "y-durableobjects";
+
+const app = new Hono<Env>();
+app.use("*", cors());
+
+const route = app.route(
+  "/editor",
+  yRoute((env) => env.Y_DURABLE_OBJECTS),
+);
+
+export default route;
+export { YDurableObjects };
+```
+
+### Without the shorthand
+
+```typescript
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { YDurableObjects } from "y-durableobjects";
+
+const app = new Hono<Env>();
+app.use("*", cors());
+app.get("/editor/:id", async (c) => {
+  const id = c.env.Y_DURABLE_OBJECTS.idFromName(c.req.param("id"));
+  const obj = c.env.Y_DURABLE_OBJECTS.get(id);
+
+  // get websocket connection
+  const url = new URL("/", c.req.url);
+  const res = await obj.fetch(url.href, {
+    headers: c.req.raw.headers,
+  });
+  if (res.webSocket === null) return c.body(null, 500);
+
+  return new Response(null, { webSocket: res.webSocket, status: res.status });
+});
+```

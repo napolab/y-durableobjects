@@ -1,18 +1,81 @@
 {
-  "name": "yjs-worker",
+  "name": "y-durableobjects",
   "version": "0.0.0",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.cts",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/napolab/y-durableobjects.git"
+  },
+  "bugs": {
+    "url": "https://github.com/napolab/y-durableobjects/issues"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
   "scripts": {
-    "dev": "turbo dev",
-    "fmt": "turbo fmt",
-    "lint": "turbo lint",
-    "typecheck": "turbo typecheck",
-    "build": "turbo build"
+    "typecheck": "tsc --noEmit",
+    "build": "tsup",
+    "lint": "npm-run-all -p lint:*",
+    "lint:eslint": "eslint . --ext .ts",
+    "lint:prettier": "prettier --check .",
+    "fmt": "npm-run-all -s fmt:*",
+    "fmt:prettier": "prettier --write .",
+    "fmt:eslint": "eslint . --ext .ts --fix",
+    "publint": "publint",
+    "release": "changeset publish"
   },
   "author": "naporin0624",
+  "files": [
+    "dist",
+    "package.json",
+    "README.md"
+  ],
+  "keywords": [
+    "cloudflare",
+    "cloudfalreworkers",
+    "hono",
+    "durableobjects",
+    "yjs"
+  ],
   "devDependencies": {
-    "turbo": "^1.11.2"
+    "@changesets/cli": "^2.27.1",
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "@naporin0624/eslint-config": "^0.14.0",
+    "eslint": "^8.56.0",
+    "hono": "^4.0.4",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.2.5",
+    "publint": "^0.2.7",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.28.3"
   },
-  "workspaces": [
-    "apps/*"
-  ]
+  "dependencies": {
+    "js-base64": "^3.7.6",
+    "lib0": "^0.2.89",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.12"
+  },
+  "peerDependencies": {
+    "hono": ">=3.7"
+  },
+  "volta": {
+    "node": "20.11.1"
+  }
 }
