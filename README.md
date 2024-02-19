@@ -111,7 +111,7 @@ import { YDurableObjects } from "y-durableobjects";
 
 const app = new Hono<Env>();
 app.use("*", cors());
-app.get(":id", async (c) => {
+app.get("/editor/:id", async (c) => {
   const id = c.env.Y_DURABLE_OBJECTS.idFromName(c.req.param("id"));
   const obj = c.env.Y_DURABLE_OBJECTS.get(id);
 
@@ -125,5 +125,3 @@ app.get(":id", async (c) => {
   return new Response(null, { webSocket: res.webSocket, status: res.status });
 });
 ```
-
-Ensure to follow the configuration steps carefully to set up your project for real-time collaboration using `y-durableobjects` and Hono.
