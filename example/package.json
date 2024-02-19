@@ -1,0 +1,18 @@
+{
+  "name": "yjs-worker",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "turbo dev",
+    "fmt": "turbo fmt",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "build": "turbo build"
+  },
+  "author": "naporin0624",
+  "devDependencies": {
+    "turbo": "^1.11.2"
+  },
+  "workspaces": [
+    "apps/*"
+  ]
+}
