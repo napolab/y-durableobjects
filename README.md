@@ -90,7 +90,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { YDurableObjects, yRoute } from "y-durableobjects";
 
-const app = new Hono<Env>();
+const app = new Hono();
 app.use("*", cors());
 
 const route = app.route(
