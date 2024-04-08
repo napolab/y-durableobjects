@@ -33,7 +33,7 @@ export class YDurableObjects extends DurableObject<Env["Bindings"]> {
     this.ctx.acceptWebSocket(server);
     this.connect(server);
 
-    return client;
+    return new Response(null, { webSocket: client, status: 101 });
   }
 
   async webSocketMessage(
