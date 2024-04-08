@@ -1,44 +1,39 @@
-import { Hono } from "hono";
+import { DurableObject } from "cloudflare:workers";
 import { fromUint8Array, toUint8Array } from "js-base64";
 import { applyUpdate, encodeStateAsUpdate } from "yjs";
 
-import { upgrade } from "../middleware";
 import { WSSharedDoc } from "../yjs/ws-share-doc";
 
 import type { Env } from "hono";
 
-export class YDurableObjects<T extends Env> implements DurableObject {
-  private app = new Hono<T>();
+export class YDurableObjects extends DurableObject<Env["Bindings"]> {
   private doc = new WSSharedDoc();
   private sessions = new Map<WebSocket, () => void>();
   private readonly yDocKey = "doc";
 
   constructor(
-    private readonly state: DurableObjectState,
-    private readonly env: T["Bindings"],
+    readonly ctx: DurableObjectState,
+    readonly env: Env["Bindings"],
   ) {
-    void this.state.blockConcurrencyWhile(async () => {
+    super(ctx, env);
+    void this.ctx.blockConcurrencyWhile(async () => {
       await this.restoreYDoc();
 
-      for (const ws of this.state.getWebSockets()) {
+      for (const ws of this.ctx.getWebSockets()) {
         this.connect(ws);
       }
     });
-
-    this.app.get("/", upgrade, async () => {
-      const pair = new WebSocketPair();
-      const client = pair[0];
-      const server = pair[1];
-
-      this.state.acceptWebSocket(server);
-      this.connect(server);
-
-      return new Response(null, { webSocket: client, status: 101 });
-    });
   }
 
-  async fetch(request: Request): Promise<Response> {
-    return this.app.request(request, undefined, this.env);
+  socket() {
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+
+    this.ctx.acceptWebSocket(server);
+    this.connect(server);
+
+    return client;
   }
 
   async webSocketMessage(
@@ -91,10 +86,10 @@ export class YDurableObjects<T extends Env> implements DurableObject {
   private async storeYDoc() {
     const state = encodeStateAsUpdate(this.doc);
     const encoded = fromUint8Array(state);
-    await this.state.storage.put(this.yDocKey, encoded);
+    await this.ctx.storage.put(this.yDocKey, encoded);
   }
   private async restoreYDoc() {
-    const encoded = await this.state.storage.get<string>(this.yDocKey);
+    const encoded = await this.ctx.storage.get<string>(this.yDocKey);
     if (encoded !== undefined) {
       applyUpdate(this.doc, toUint8Array(encoded));
     }
