@@ -76,8 +76,5 @@
   },
   "peerDependencies": {
     "hono": ">=4.2"
-  },
-  "volta": {
-    "node": "20.11.1"
   }
 }
