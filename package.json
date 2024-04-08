@@ -57,7 +57,7 @@
   ],
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
-    "@cloudflare/workers-types": "^4.20240208.0",
+    "@cloudflare/workers-types": "^4.20240405.0",
     "@naporin0624/eslint-config": "^0.14.0",
     "eslint": "^8.56.0",
     "hono": "^4.0.4",
@@ -66,7 +66,7 @@
     "publint": "^0.2.7",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3",
-    "wrangler": "^3.28.3"
+    "wrangler": "^3.48.0"
   },
   "dependencies": {
     "js-base64": "^3.7.6",
