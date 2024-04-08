@@ -75,7 +75,7 @@
     "yjs": "^13.6.12"
   },
   "peerDependencies": {
-    "hono": ">=3.7"
+    "hono": ">=4.2"
   },
   "volta": {
     "node": "20.11.1"
