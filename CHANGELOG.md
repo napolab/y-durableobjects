@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 0.2.0
+
+### Minor Changes
+
+- 13dc461: add typed-websocket route
+
 ## 0.1.3
 
 ### Patch Changes
