@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 0.2.1
+
+### Patch Changes
+
+- 2a92448: fix hono dependencies
+
 ## 0.2.0
 
 ### Minor Changes
