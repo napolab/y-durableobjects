@@ -25,7 +25,7 @@ export class YDurableObjects<T extends Env> implements DurableObject {
       }
     });
 
-    this.app.get("/", upgrade, async () => {
+    this.app.get("/", upgrade(), async () => {
       const pair = new WebSocketPair();
       const client = pair[0];
       const server = pair[1];
