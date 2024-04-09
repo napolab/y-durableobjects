@@ -12,8 +12,8 @@ import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPl
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
-import { LexicalEditor } from "lexical";
-import { FC, useCallback, useRef } from "react";
+import type { LexicalEditor } from "lexical";
+import { type FC, useCallback, useRef } from "react";
 import { initialConfig } from "./config";
 import { providerFactory } from "./provider";
 

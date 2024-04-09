@@ -1,6 +1,6 @@
-import { CollaborationPlugin } from "@lexical/react/LexicalCollaborationPlugin";
+import type { CollaborationPlugin } from "@lexical/react/LexicalCollaborationPlugin";
 import type { Provider } from "@lexical/yjs";
-import { ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import { WebsocketProvider } from "y-websocket";
 import { Doc } from "yjs";
 import { client } from "../adapters/client";
