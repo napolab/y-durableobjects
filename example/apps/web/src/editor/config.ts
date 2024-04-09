@@ -1,9 +1,9 @@
-import { ListItemNode, ListNode } from "@lexical/list";
+import { CodeHighlightNode, CodeNode } from "@lexical/code";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
-import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
-import { InitialConfigType } from "@lexical/react/LexicalComposer";
+import { ListItemNode, ListNode } from "@lexical/list";
+import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { CodeNode, CodeHighlightNode } from "@lexical/code";
+import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 
 export const initialConfig: InitialConfigType = {
   editorState: null,

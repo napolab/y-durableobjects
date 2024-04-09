@@ -8,7 +8,11 @@
     "lib": ["esnext"],
     "types": ["@cloudflare/workers-types"],
     "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx"
+    "jsxImportSource": "hono/jsx",
+    "outDir": "dist",
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "declaration": true
   },
   "include": ["src"]
 }

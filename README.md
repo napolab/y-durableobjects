@@ -4,6 +4,10 @@
 
 The `y-durableobjects` library is designed to facilitate real-time collaboration in Cloudflare Workers environment using Yjs and Durable Objects. It provides a straightforward way to integrate Yjs for decentralized, scalable real-time editing features.
 
+## Requirements
+
+- Hono version 4.2 or higher is required.
+
 ## Installation
 
 To use `y-durableobjects`, you need to install the package along with `hono`, as it is a peer dependency.
@@ -109,7 +113,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { YDurableObjects } from "y-durableobjects";
 
-const app = new Hono<Env>();
+const app = new Hono();
 app.use("*", cors());
 app.get("/editor/:id", async (c) => {
   const id = c.env.Y_DURABLE_OBJECTS.idFromName(c.req.param("id"));
@@ -127,4 +131,42 @@ app.get("/editor/:id", async (c) => {
 
 export default app;
 export { YDurableObjects };
+```
+
+### Hono RPC support
+
+- Utilizes Hono's WebSocket Helper, making the `$ws` method available in `hono/client` for WebSocket communications.
+  - For more information on server and client setup, see the [Hono WebSocket Helper documentation](https://hono.dev/helpers/websocket#server-and-client).
+
+#### Server Implementation
+
+```typescript
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { YDurableObjects, yRoute } from "y-durableobjects";
+
+const app = new Hono();
+app.use("*", cors());
+
+const route = app.route(
+  "/editor",
+  yRoute((env) => env.Y_DURABLE_OBJECTS),
+);
+
+export default route;
+export type AppType = typeof route;
+export { YDurableObjects };
+```
+
+#### Client Implementation
+
+```typescript
+import { hc } from "hono/client";
+import type { AppType } from "./server"; // Adjust the import path as needed
+
+const API_URL = "http://localhost:8787";
+
+export const client = hc<AppType>(API_URL);
+const ws = client.editor[":id"].$ws({ param: { id: "example" } });
+//    ^?const ws: WebSocket
 ```

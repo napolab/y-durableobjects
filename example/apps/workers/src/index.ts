@@ -11,4 +11,5 @@ const route = app.route(
 );
 
 export default route;
+export type AppType = typeof route;
 export { YDurableObjects };

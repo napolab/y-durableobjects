@@ -4,6 +4,7 @@
   "pipeline": {
     "fmt": {},
     "lint": {},
+    "typecheck": {},
     "dev": {
       "cache": false,
       "persistent": true

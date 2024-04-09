@@ -6,7 +6,7 @@
     "fmt": "turbo fmt",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "build": "turbo build"
+    "build": "turbo build --filter workers && turbo build"
   },
   "author": "naporin0624",
   "devDependencies": {
