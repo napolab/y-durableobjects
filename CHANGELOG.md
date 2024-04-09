@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 0.2.2
+
+### Patch Changes
+
+- 4176b18: enhanced readme
+
 ## 0.2.1
 
 ### Patch Changes
