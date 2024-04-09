@@ -9,12 +9,12 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome lint src",
     "fmt": "biome format src --write",
-    "build": "rimraf dist && tsc --emitDeclarationOnly"
+    "build": "tsc --emitDeclarationOnly"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.4.1",
     "@cloudflare/workers-types": "^4.20231218.0",
-    "rimraf": "^5.0.5",
+    "typescript": "^5.2.2",
     "wrangler": "^3.26.0"
   },
   "dependencies": {
