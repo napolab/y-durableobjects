@@ -2,19 +2,23 @@
   "name": "workers",
   "type": "module",
   "main": "src/index.ts",
+  "types": "dist/index.d.ts",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify src/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint src",
-    "fmt": "biome format src --write"
+    "fmt": "biome format src --write",
+    "build": "rimraf dist && tsc --emitDeclarationOnly"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.4.1",
     "@cloudflare/workers-types": "^4.20231218.0",
+    "rimraf": "^5.0.5",
     "wrangler": "^3.26.0"
   },
   "dependencies": {
-    "y-durableobjects": "file:../../.."
+    "hono": "^4.2.3",
+    "y-durableobjects": "*"
   }
 }

@@ -5,4 +5,4 @@ const API_URL = import.meta.env.PROD ? import.meta.env.VITE_API_URL : "http://lo
 
 export const client = hc<AppType>(API_URL);
 
-// const ws = client.editor[":id"].$ws({ param: { id: "1" }})
+// const ws = client.editor[":id"].$ws({ param: { id: "1" } })

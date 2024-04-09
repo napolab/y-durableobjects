@@ -20,7 +20,7 @@
     "@lexical/react": "^0.13.1",
     "@lexical/rich-text": "^0.13.1",
     "@lexical/table": "^0.13.1",
-    "hono": "^4.2.2",
+    "hono": "^4.2.3",
     "lexical": "^0.13.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
