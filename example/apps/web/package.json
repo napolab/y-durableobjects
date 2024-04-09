@@ -8,8 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "biome lint src",
-    "fmt": "biome format src --write"
+    "lint": "biome check src",
+    "fmt": "biome check --apply src"
   },
   "dependencies": {
     "@acab/reset.css": "^0.8.0",
@@ -20,9 +20,11 @@
     "@lexical/react": "^0.13.1",
     "@lexical/rich-text": "^0.13.1",
     "@lexical/table": "^0.13.1",
+    "hono": "^4.2.2",
     "lexical": "^0.13.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "workers": "file:../workers",
     "y-websocket": "^1.5.1",
     "yjs": "^13.6.10"
   },

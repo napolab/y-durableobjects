@@ -1,6 +1,7 @@
 {
   "name": "workers",
   "type": "module",
+  "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify src/index.ts",
