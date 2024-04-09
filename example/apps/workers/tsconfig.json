@@ -11,8 +11,8 @@
     "jsxImportSource": "hono/jsx",
     "outDir": "dist",
     "rootDir": "src",
-    "composite": true,
     "skipLibCheck": true,
+    "declaration": true
   },
   "include": ["src"]
 }
