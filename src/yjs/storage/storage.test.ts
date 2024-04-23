@@ -97,7 +97,13 @@ describe("YTransactionStorageImpl", () => {
               return Promise.resolve(undefined);
           }
         });
-        storage.list.mockResolvedValue(new Map([["ydoc:update:1", update]]));
+        storage.list.mockResolvedValue(
+          new Map(
+            Array(exceededUpdates)
+              .fill(0)
+              .map((_, i) => [`ydoc:update:${i + 1}`, update]),
+          ),
+        );
 
         const yStorage = new YTransactionStorageImpl(storage);
         await yStorage.storeUpdate(update);
@@ -152,7 +158,13 @@ describe("YTransactionStorageImpl", () => {
           }
         }
       });
-      storage.list.mockResolvedValueOnce(new Map([["ydoc:update:1", update]]));
+      storage.list.mockResolvedValue(
+        new Map(
+          Array(1)
+            .fill(0)
+            .map((_, i) => [`ydoc:update:${i + 1}`, update]),
+        ),
+      );
 
       await yStorage.commit();
 
@@ -187,7 +199,7 @@ describe("YTransactionStorageImpl", () => {
         }
       });
 
-      storage.list.mockResolvedValueOnce(new Map());
+      storage.list.mockResolvedValue(new Map());
 
       await expect(yStorage.commit()).resolves.not.toThrow();
     });

@@ -24,32 +24,44 @@ export class YTransactionStorageImpl implements YTransactionStorage {
     private readonly storage: TransactionStorage,
     options?: Options,
   ) {
-    this.MAX_BYTES = options?.maxBytes ?? 1024 * 1024 * 2;
+    this.MAX_BYTES = options?.maxBytes ?? 1024 * 1024 * 1;
 
     this.MAX_UPDATES = options?.maxUpdates ?? 500;
   }
 
   async getYDoc(): Promise<Doc> {
-    const snapshot = await this.storage.get<Uint8Array>(
-      storageKey({ type: "state", name: "doc" }),
-    );
-    const data = await this.storage.list<Uint8Array>({
-      prefix: storageKey({ type: "update" }),
-    });
+    try {
+      const snapshot = await this.storage.get<Uint8Array>(
+        storageKey({ type: "state", name: "doc" }),
+      );
+      const data = await this.storage.list<Uint8Array>({
+        prefix: storageKey({ type: "update" }),
+      });
+      console.log(
+        "snapshot instanceof Uint8Array:",
+        snapshot instanceof Uint8Array,
+        "snapshot undefined",
+        snapshot === undefined,
+        "data instanceof Map:",
+        Array.from(data.values()).map((v) => v instanceof Uint8Array),
+      );
 
-    const updates: Uint8Array[] = Array.from(data.values());
-    const doc = new Doc();
+      const updates: Uint8Array[] = Array.from(data.values());
+      const doc = new Doc();
 
-    doc.transact(() => {
-      if (snapshot) {
-        applyUpdate(doc, snapshot);
-      }
-      for (const update of updates) {
-        applyUpdate(doc, update);
-      }
-    });
+      doc.transact(() => {
+        if (snapshot) {
+          applyUpdate(doc, snapshot);
+        }
+        for (const update of updates) {
+          applyUpdate(doc, update);
+        }
+      });
 
-    return doc;
+      return doc;
+    } catch (e) {
+      throw new Error("getYDoc error", { cause: e });
+    }
   }
 
   storeUpdate(update: Uint8Array): Promise<void> {
@@ -78,23 +90,32 @@ export class YTransactionStorageImpl implements YTransactionStorage {
   }
 
   private async _commit(doc: Doc, tx: Omit<TransactionStorage, "transaction">) {
-    const count =
-      (await tx.get<number>(storageKey({ type: "state", name: "count" }))) ?? 0;
+    try {
+      const data = await tx.list<Uint8Array>({
+        prefix: storageKey({ type: "update" }),
+      });
 
-    await tx.put(storageKey({ type: "state", name: "bytes" }), 0);
-    await tx.put(storageKey({ type: "state", name: "count" }), 0);
-    const deleteKeys = Array(count)
-      .fill(0)
-      .map((_, i) => storageKey({ type: "update", name: i + 1 }));
-    await tx.delete(deleteKeys);
+      await tx.delete(Array.from(data.keys()));
 
-    const state = encodeStateAsUpdate(doc);
-    await tx.put(storageKey({ type: "state", name: "doc" }), state);
+      for (const update of data.values()) {
+        applyUpdate(doc, update);
+      }
+
+      const update = encodeStateAsUpdate(doc);
+      console.log("update:", update.byteLength, update instanceof Uint8Array);
+      await tx.put(storageKey({ type: "state", name: "bytes" }), 0);
+      await tx.put(storageKey({ type: "state", name: "count" }), 0);
+      await tx.put(storageKey({ type: "state", name: "doc" }), update);
+    } catch (e) {
+      throw new Error("commit error", { cause: e });
+    }
   }
 
-  commit(): Promise<void> {
+  async commit(): Promise<void> {
+    const doc = await this.getYDoc();
+
     return this.storage.transaction(async (tx) => {
-      await this._commit(await this.getYDoc(), tx);
+      await this._commit(doc, tx);
     });
   }
 }
