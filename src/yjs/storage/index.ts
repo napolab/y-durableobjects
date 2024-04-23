@@ -30,30 +30,26 @@ export class YTransactionStorageImpl implements YTransactionStorage {
   }
 
   async getYDoc(): Promise<Doc> {
-    try {
-      const snapshot = await this.storage.get<Uint8Array>(
-        storageKey({ type: "state", name: "doc" }),
-      );
-      const data = await this.storage.list<Uint8Array>({
-        prefix: storageKey({ type: "update" }),
-      });
+    const snapshot = await this.storage.get<Uint8Array>(
+      storageKey({ type: "state", name: "doc" }),
+    );
+    const data = await this.storage.list<Uint8Array>({
+      prefix: storageKey({ type: "update" }),
+    });
 
-      const updates: Uint8Array[] = Array.from(data.values());
-      const doc = new Doc();
+    const updates: Uint8Array[] = Array.from(data.values());
+    const doc = new Doc();
 
-      doc.transact(() => {
-        if (snapshot) {
-          applyUpdate(doc, snapshot);
-        }
-        for (const update of updates) {
-          applyUpdate(doc, update);
-        }
-      });
+    doc.transact(() => {
+      if (snapshot) {
+        applyUpdate(doc, snapshot);
+      }
+      for (const update of updates) {
+        applyUpdate(doc, update);
+      }
+    });
 
-      return doc;
-    } catch (e) {
-      throw new Error("getYDoc error", { cause: e });
-    }
+    return doc;
   }
 
   storeUpdate(update: Uint8Array): Promise<void> {
@@ -82,24 +78,20 @@ export class YTransactionStorageImpl implements YTransactionStorage {
   }
 
   private async _commit(doc: Doc, tx: Omit<TransactionStorage, "transaction">) {
-    try {
-      const data = await tx.list<Uint8Array>({
-        prefix: storageKey({ type: "update" }),
-      });
+    const data = await tx.list<Uint8Array>({
+      prefix: storageKey({ type: "update" }),
+    });
 
-      for (const update of data.values()) {
-        applyUpdate(doc, update);
-      }
-
-      const update = encodeStateAsUpdate(doc);
-
-      await tx.delete(Array.from(data.keys()));
-      await tx.put(storageKey({ type: "state", name: "bytes" }), 0);
-      await tx.put(storageKey({ type: "state", name: "count" }), 0);
-      await tx.put(storageKey({ type: "state", name: "doc" }), update);
-    } catch (e) {
-      throw new Error("commit error", { cause: e });
+    for (const update of data.values()) {
+      applyUpdate(doc, update);
     }
+
+    const update = encodeStateAsUpdate(doc);
+
+    await tx.delete(Array.from(data.keys()));
+    await tx.put(storageKey({ type: "state", name: "bytes" }), 0);
+    await tx.put(storageKey({ type: "state", name: "count" }), 0);
+    await tx.put(storageKey({ type: "state", name: "doc" }), update);
   }
 
   async commit(): Promise<void> {
