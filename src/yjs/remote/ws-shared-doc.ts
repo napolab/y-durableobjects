@@ -14,8 +14,9 @@ import {
 import { readSyncMessage, writeUpdate } from "y-protocols/sync";
 import { Doc } from "yjs";
 
-const messageSync = 0;
-const messageAwareness = 1;
+import { createTypedEncoder, messageType } from "../message-type";
+
+import type { RemoteDoc } from ".";
 
 type Changes = {
   added: number[];
@@ -24,7 +25,7 @@ type Changes = {
 };
 type Listener<T> = (message: T) => void;
 type Unsubscribe = () => void;
-interface Notification<T> {
+interface Notification<T> extends RemoteDoc {
   notify(cb: Listener<T>): Unsubscribe;
 }
 
@@ -35,11 +36,12 @@ export class WSSharedDoc extends Doc implements Notification<Uint8Array> {
   constructor(gc = true) {
     super({ gc });
     this.awareness.setLocalState(null);
-    this.setup();
 
+    // カーソルなどの付加情報の更新通知
     this.awareness.on("update", (changes: Changes) => {
       this.awarenessChangeHandler(changes);
     });
+    // yDoc の更新通知
     this.on("update", (update: Uint8Array) => {
       this.syncMessageHandler(update);
     });
@@ -47,20 +49,21 @@ export class WSSharedDoc extends Doc implements Notification<Uint8Array> {
 
   update(message: Uint8Array) {
     const encoder = createEncoder();
-    const decoder = createDecoder(new Uint8Array(message));
-    const messageType = readVarUint(decoder);
+    const decoder = createDecoder(message);
+    const type = readVarUint(decoder);
 
-    switch (messageType) {
-      case messageSync: {
-        writeVarUint(encoder, messageSync);
+    switch (type) {
+      case messageType.sync: {
+        writeVarUint(encoder, messageType.sync);
         readSyncMessage(decoder, encoder, this, null);
 
+        // changed remote doc
         if (length(encoder) > 1) {
           this._notify(toUint8Array(encoder));
         }
         break;
       }
-      case messageAwareness: {
+      case messageType.awareness: {
         applyAwarenessUpdate(this.awareness, readVarUint8Array(decoder), null);
         break;
       }
@@ -75,44 +78,21 @@ export class WSSharedDoc extends Doc implements Notification<Uint8Array> {
     };
   }
 
-  private setup() {
-    const encoder = createEncoder();
-    writeVarUint(encoder, messageSync);
-    this._notify(toUint8Array(encoder));
-
-    const awarenessStates = this.awareness.getStates();
-    if (awarenessStates.size > 0) {
-      writeVarUint(encoder, messageAwareness);
-      const message = encodeAwarenessUpdate(
-        this.awareness,
-        Array.from(awarenessStates.keys()),
-        this.awareness.states,
-      );
-      writeVarUint8Array(encoder, message);
-
-      this._notify(toUint8Array(encoder));
-    }
-  }
-
   private syncMessageHandler(update: Uint8Array) {
-    const encoder = createEncoder();
-    writeVarUint(encoder, messageSync);
+    const encoder = createTypedEncoder("sync");
     writeUpdate(encoder, update);
 
     this._notify(toUint8Array(encoder));
   }
   private awarenessChangeHandler({ added, updated, removed }: Changes) {
-    const changedClients = [...added, ...updated, ...removed];
-    const encoder = createEncoder();
-    writeVarUint(encoder, messageAwareness);
-    writeVarUint8Array(
-      encoder,
-      encodeAwarenessUpdate(
-        this.awareness,
-        changedClients,
-        this.awareness.states,
-      ),
+    const changed = [...added, ...updated, ...removed];
+    const encoder = createTypedEncoder("awareness");
+    const update = encodeAwarenessUpdate(
+      this.awareness,
+      changed,
+      this.awareness.states,
     );
+    writeVarUint8Array(encoder, update);
 
     this._notify(toUint8Array(encoder));
   }
