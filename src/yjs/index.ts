@@ -1,24 +1,34 @@
 import { Hono } from "hono";
-import { fromUint8Array, toUint8Array } from "js-base64";
 import { applyUpdate, encodeStateAsUpdate } from "yjs";
 
 import { upgrade } from "../middleware";
-import { WSSharedDoc } from "../yjs/ws-share-doc";
+import { WSSharedDoc } from "../yjs/remote";
+
+import { setupWSConnection } from "./client/setup";
+import { YTransactionStorageImpl } from "./storage";
 
 import type { Env } from "hono";
 
 export class YDurableObjects<T extends Env> implements DurableObject {
   private app = new Hono<T>();
   private doc = new WSSharedDoc();
+  private storage = new YTransactionStorageImpl({
+    get: (key) => this.state.storage.get(key),
+    list: (options) => this.state.storage.list(options),
+    put: (key, value) => this.state.storage.put(key, value),
+    delete: async (key) =>
+      this.state.storage.delete(Array.isArray(key) ? key : [key]),
+    transaction: (closure) => this.state.storage.transaction(closure),
+  });
   private sessions = new Map<WebSocket, () => void>();
-  private readonly yDocKey = "doc";
 
   constructor(
     private readonly state: DurableObjectState,
     private readonly env: T["Bindings"],
   ) {
     void this.state.blockConcurrencyWhile(async () => {
-      await this.restoreYDoc();
+      const doc = await this.storage.getYDoc();
+      applyUpdate(this.doc, encodeStateAsUpdate(doc));
 
       for (const ws of this.state.getWebSockets()) {
         this.connect(ws);
@@ -47,11 +57,9 @@ export class YDurableObjects<T extends Env> implements DurableObject {
   ): Promise<void> {
     if (!(message instanceof ArrayBuffer)) return;
 
-    try {
-      this.doc.update(new Uint8Array(message));
-    } catch (e) {
-      this.doc.emit("error", [e]);
-    }
+    const update = new Uint8Array(message);
+    this.doc.update(update);
+    await this.storage.storeUpdate(update);
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
@@ -65,6 +73,7 @@ export class YDurableObjects<T extends Env> implements DurableObject {
   }
 
   private connect(ws: WebSocket) {
+    setupWSConnection(ws, this.doc);
     const s = this.doc.notify((message) => {
       ws.send(message);
     });
@@ -83,20 +92,9 @@ export class YDurableObjects<T extends Env> implements DurableObject {
   }
 
   private async cleanup() {
-    if (this.sessions.size < 2) {
-      await this.storeYDoc();
-    }
-  }
-
-  private async storeYDoc() {
-    const state = encodeStateAsUpdate(this.doc);
-    const encoded = fromUint8Array(state);
-    await this.state.storage.put(this.yDocKey, encoded);
-  }
-  private async restoreYDoc() {
-    const encoded = await this.state.storage.get<string>(this.yDocKey);
-    if (encoded !== undefined) {
-      applyUpdate(this.doc, toUint8Array(encoded));
+    if (this.sessions.size < 1) {
+      console.log("commit");
+      await this.storage.commit();
     }
   }
 }
