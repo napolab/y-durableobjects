@@ -37,14 +37,6 @@ export class YTransactionStorageImpl implements YTransactionStorage {
       const data = await this.storage.list<Uint8Array>({
         prefix: storageKey({ type: "update" }),
       });
-      console.log(
-        "snapshot instanceof Uint8Array:",
-        snapshot instanceof Uint8Array,
-        "snapshot undefined",
-        snapshot === undefined,
-        "data instanceof Map:",
-        Array.from(data.values()).map((v) => v instanceof Uint8Array),
-      );
 
       const updates: Uint8Array[] = Array.from(data.values());
       const doc = new Doc();
@@ -95,14 +87,13 @@ export class YTransactionStorageImpl implements YTransactionStorage {
         prefix: storageKey({ type: "update" }),
       });
 
-      await tx.delete(Array.from(data.keys()));
-
       for (const update of data.values()) {
         applyUpdate(doc, update);
       }
 
       const update = encodeStateAsUpdate(doc);
-      console.log("update:", update.byteLength, update instanceof Uint8Array);
+
+      await tx.delete(Array.from(data.keys()));
       await tx.put(storageKey({ type: "state", name: "bytes" }), 0);
       await tx.put(storageKey({ type: "state", name: "count" }), 0);
       await tx.put(storageKey({ type: "state", name: "doc" }), update);
