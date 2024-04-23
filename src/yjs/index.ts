@@ -30,6 +30,10 @@ export class YDurableObjects<T extends Env> implements DurableObject {
       const doc = await this.storage.getYDoc();
       applyUpdate(this.doc, encodeStateAsUpdate(doc));
 
+      this.doc.on("update", async (update) => {
+        await this.storage.storeUpdate(update);
+      });
+
       for (const ws of this.state.getWebSockets()) {
         this.connect(ws);
       }
@@ -59,7 +63,6 @@ export class YDurableObjects<T extends Env> implements DurableObject {
 
     const update = new Uint8Array(message);
     this.doc.update(update);
-    await this.storage.storeUpdate(update);
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
@@ -93,7 +96,6 @@ export class YDurableObjects<T extends Env> implements DurableObject {
 
   private async cleanup() {
     if (this.sessions.size < 1) {
-      console.log("commit");
       await this.storage.commit();
     }
   }
