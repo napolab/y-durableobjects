@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 0.3.0
+
+### Minor Changes
+
+- c2d0a17: yDoc must be saved with each change.
+
 ## 0.2.2
 
 ### Patch Changes
