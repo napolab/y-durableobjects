@@ -1,5 +1,7 @@
 import { Doc, encodeStateAsUpdate } from "yjs";
 
+import { storageKey } from "./storage-key";
+
 import { YTransactionStorageImpl } from ".";
 
 import type { TransactionStorage } from "./type";
@@ -85,9 +87,16 @@ describe("YTransactionStorageImpl", () => {
         doc.getText("root").insert(0, "Hello World");
         const update = encodeStateAsUpdate(doc);
 
-        storage.get
-          .mockResolvedValueOnce(exceededBytes)
-          .mockResolvedValueOnce(exceededUpdates);
+        storage.get.mockImplementation((key) => {
+          switch (key) {
+            case storageKey({ type: "state", name: "bytes" }):
+              return Promise.resolve(exceededBytes);
+            case storageKey({ type: "state", name: "count" }):
+              return Promise.resolve(exceededUpdates);
+            default:
+              return Promise.resolve(undefined);
+          }
+        });
         storage.list.mockResolvedValue(new Map([["ydoc:update:1", update]]));
 
         const yStorage = new YTransactionStorageImpl(storage);
@@ -120,6 +129,67 @@ describe("YTransactionStorageImpl", () => {
       });
       expect(yStorage).toHaveProperty("MAX_BYTES", 1024);
       expect(yStorage).toHaveProperty("MAX_UPDATES", 100);
+    });
+  });
+
+  describe("commit method", () => {
+    it("commits all updates and clears all related storage keys", async () => {
+      const yStorage = new YTransactionStorageImpl(storage);
+
+      const doc = new Doc();
+      doc.getText("root").insert(0, "Hello World");
+      const update = encodeStateAsUpdate(doc);
+      storage.get.mockImplementation((key) => {
+        switch (key) {
+          case storageKey({ type: "state", name: "bytes" }):
+            return Promise.resolve(update.byteLength);
+          case storageKey({ type: "state", name: "count" }):
+            return Promise.resolve(1);
+          case storageKey({ type: "state", name: "doc" }):
+            return Promise.resolve(undefined);
+          default: {
+            throw new Error("Unexpected key");
+          }
+        }
+      });
+      storage.list.mockResolvedValueOnce(new Map([["ydoc:update:1", update]]));
+
+      await yStorage.commit();
+
+      expect(storage.delete).toHaveBeenCalledWith(expect.any(Array));
+      expect(storage.put).toHaveBeenCalledWith(
+        storageKey({ type: "state", name: "bytes" }),
+        0,
+      );
+      expect(storage.put).toHaveBeenCalledWith(
+        storageKey({ type: "state", name: "count" }),
+        0,
+      );
+      expect(storage.put).toHaveBeenCalledWith(
+        storageKey({ type: "state", name: "doc" }),
+        expect.any(Uint8Array),
+      );
+    });
+
+    it("does not throw errors when there are no updates to commit", async () => {
+      const yStorage = new YTransactionStorageImpl(storage);
+      storage.get.mockImplementation((key) => {
+        switch (key) {
+          case storageKey({ type: "state", name: "bytes" }):
+            return Promise.resolve(undefined);
+          case storageKey({ type: "state", name: "count" }):
+            return Promise.resolve(undefined);
+          case storageKey({ type: "state", name: "doc" }):
+            return Promise.resolve(undefined);
+          default: {
+            throw new Error("Unexpected key");
+          }
+        }
+      });
+
+      storage.list.mockResolvedValueOnce(new Map());
+
+      await expect(yStorage.commit()).resolves.not.toThrow();
     });
   });
 });
