@@ -57,6 +57,7 @@ export class WSSharedDoc extends Doc implements Notification<Uint8Array> {
         writeVarUint(encoder, messageType.sync);
         readSyncMessage(decoder, encoder, this, null);
 
+        // changed remote doc
         if (length(encoder) > 1) {
           this._notify(toUint8Array(encoder));
         }
