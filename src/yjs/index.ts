@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { removeAwarenessStates } from "y-protocols/awareness";
 import { applyUpdate, encodeStateAsUpdate } from "yjs";
 
 import { upgrade } from "../middleware";
@@ -7,6 +8,7 @@ import { WSSharedDoc } from "../yjs/remote";
 import { setupWSConnection } from "./client/setup";
 import { YTransactionStorageImpl } from "./storage";
 
+import type { AwarenessChanges } from "../yjs/remote";
 import type { Env } from "hono";
 
 export class YDurableObjects<T extends Env> implements DurableObject {
@@ -21,6 +23,7 @@ export class YDurableObjects<T extends Env> implements DurableObject {
     transaction: (closure) => this.state.storage.transaction(closure),
   });
   private sessions = new Map<WebSocket, () => void>();
+  private awarenessClients = new Set<number>();
 
   constructor(
     private readonly state: DurableObjectState,
@@ -30,14 +33,25 @@ export class YDurableObjects<T extends Env> implements DurableObject {
       const doc = await this.storage.getYDoc();
       applyUpdate(this.doc, encodeStateAsUpdate(doc));
 
-      this.doc.on("update", async (update) => {
-        await this.storage.storeUpdate(update);
-      });
-
       for (const ws of this.state.getWebSockets()) {
         this.connect(ws);
       }
     });
+
+    this.doc.on("update", async (update) => {
+      await this.storage.storeUpdate(update);
+    });
+    this.doc.awareness.on(
+      "update",
+      async ({ added, removed, updated }: AwarenessChanges) => {
+        for (const client of [...added, ...updated]) {
+          this.awarenessClients.add(client);
+        }
+        for (const client of removed) {
+          this.awarenessClients.delete(client);
+        }
+      },
+    );
 
     this.app.get("/", upgrade(), async () => {
       const pair = new WebSocketPair();
@@ -88,6 +102,9 @@ export class YDurableObjects<T extends Env> implements DurableObject {
       const dispose = this.sessions.get(ws);
       dispose?.();
       this.sessions.delete(ws);
+      const clientIds = this.awarenessClients;
+
+      removeAwarenessStates(this.doc.awareness, Array.from(clientIds), null);
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error(e);
