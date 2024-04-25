@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { Hono } from "hono";
 import { removeAwarenessStates } from "y-protocols/awareness";
 import { applyUpdate, encodeStateAsUpdate } from "yjs";
@@ -33,11 +32,6 @@ export class YDurableObjects<T extends Env> implements DurableObject {
     void this.state.blockConcurrencyWhile(async () => {
       const doc = await this.storage.getYDoc();
       applyUpdate(this.doc, encodeStateAsUpdate(doc));
-      const clients = await this.state.storage.get<Set<number>>(
-        "ydoc:awareness_clients",
-      );
-      this.awarenessClients = clients ?? new Set<number>();
-      console.log("set awareness clients", this.awarenessClients.size);
 
       for (const ws of this.state.getWebSockets()) {
         this.connect(ws);
@@ -49,18 +43,13 @@ export class YDurableObjects<T extends Env> implements DurableObject {
     });
     this.doc.awareness.on(
       "update",
-      async ({ added, removed }: AwarenessChanges) => {
-        for (const client of added) {
+      async ({ added, removed, updated }: AwarenessChanges) => {
+        for (const client of [...added, ...updated]) {
           this.awarenessClients.add(client);
         }
         for (const client of removed) {
           this.awarenessClients.delete(client);
         }
-        console.log("awareness update", this.awarenessClients);
-        await this.state.storage.put(
-          "ydoc:awareness_clients",
-          this.awarenessClients,
-        );
       },
     );
 
@@ -114,7 +103,7 @@ export class YDurableObjects<T extends Env> implements DurableObject {
       dispose?.();
       this.sessions.delete(ws);
       const clientIds = this.awarenessClients;
-      console.log("disconnect", this.awarenessClients);
+
       removeAwarenessStates(this.doc.awareness, Array.from(clientIds), null);
     } catch (e) {
       // eslint-disable-next-line no-console
