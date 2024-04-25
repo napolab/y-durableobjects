@@ -16,13 +16,8 @@ import { Doc } from "yjs";
 
 import { createTypedEncoder, messageType } from "../message-type";
 
-import type { RemoteDoc } from ".";
+import type { AwarenessChanges, RemoteDoc } from ".";
 
-type Changes = {
-  added: number[];
-  updated: number[];
-  removed: number[];
-};
 type Listener<T> = (message: T) => void;
 type Unsubscribe = () => void;
 interface Notification<T> extends RemoteDoc {
@@ -38,7 +33,7 @@ export class WSSharedDoc extends Doc implements Notification<Uint8Array> {
     this.awareness.setLocalState(null);
 
     // カーソルなどの付加情報の更新通知
-    this.awareness.on("update", (changes: Changes) => {
+    this.awareness.on("update", (changes: AwarenessChanges) => {
       this.awarenessChangeHandler(changes);
     });
     // yDoc の更新通知
@@ -84,7 +79,11 @@ export class WSSharedDoc extends Doc implements Notification<Uint8Array> {
 
     this._notify(toUint8Array(encoder));
   }
-  private awarenessChangeHandler({ added, updated, removed }: Changes) {
+  private awarenessChangeHandler({
+    added,
+    updated,
+    removed,
+  }: AwarenessChanges) {
     const changed = [...added, ...updated, ...removed];
     const encoder = createTypedEncoder("awareness");
     const update = encodeAwarenessUpdate(
