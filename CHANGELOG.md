@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 0.3.1
+
+### Patch Changes
+
+- a3cd212: Fixed a problem that awareness remains when reloading.
+
 ## 0.3.0
 
 ### Minor Changes
