@@ -1,4 +1,6 @@
+/* eslint-disable no-console */
 import { Hono } from "hono";
+import { removeAwarenessStates } from "y-protocols/awareness";
 import { applyUpdate, encodeStateAsUpdate } from "yjs";
 
 import { upgrade } from "../middleware";
@@ -7,6 +9,7 @@ import { WSSharedDoc } from "../yjs/remote";
 import { setupWSConnection } from "./client/setup";
 import { YTransactionStorageImpl } from "./storage";
 
+import type { AwarenessChanges } from "../yjs/remote";
 import type { Env } from "hono";
 
 export class YDurableObjects<T extends Env> implements DurableObject {
@@ -21,6 +24,7 @@ export class YDurableObjects<T extends Env> implements DurableObject {
     transaction: (closure) => this.state.storage.transaction(closure),
   });
   private sessions = new Map<WebSocket, () => void>();
+  private awarenessClients = new Set<number>();
 
   constructor(
     private readonly state: DurableObjectState,
@@ -29,15 +33,36 @@ export class YDurableObjects<T extends Env> implements DurableObject {
     void this.state.blockConcurrencyWhile(async () => {
       const doc = await this.storage.getYDoc();
       applyUpdate(this.doc, encodeStateAsUpdate(doc));
-
-      this.doc.on("update", async (update) => {
-        await this.storage.storeUpdate(update);
-      });
+      const clients = await this.state.storage.get<Set<number>>(
+        "ydoc:awareness_clients",
+      );
+      this.awarenessClients = clients ?? new Set<number>();
+      console.log("set awareness clients", this.awarenessClients.size);
 
       for (const ws of this.state.getWebSockets()) {
         this.connect(ws);
       }
     });
+
+    this.doc.on("update", async (update) => {
+      await this.storage.storeUpdate(update);
+    });
+    this.doc.awareness.on(
+      "update",
+      async ({ added, removed }: AwarenessChanges) => {
+        for (const client of added) {
+          this.awarenessClients.add(client);
+        }
+        for (const client of removed) {
+          this.awarenessClients.delete(client);
+        }
+        console.log("awareness update", this.awarenessClients);
+        await this.state.storage.put(
+          "ydoc:awareness_clients",
+          this.awarenessClients,
+        );
+      },
+    );
 
     this.app.get("/", upgrade(), async () => {
       const pair = new WebSocketPair();
@@ -88,6 +113,9 @@ export class YDurableObjects<T extends Env> implements DurableObject {
       const dispose = this.sessions.get(ws);
       dispose?.();
       this.sessions.delete(ws);
+      const clientIds = this.awarenessClients;
+      console.log("disconnect", this.awarenessClients);
+      removeAwarenessStates(this.doc.awareness, Array.from(clientIds), null);
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error(e);
