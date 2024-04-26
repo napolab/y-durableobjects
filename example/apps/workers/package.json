@@ -19,6 +19,6 @@
   },
   "dependencies": {
     "hono": "^4.2.3",
-    "y-durableobjects": "^0.3.0"
+    "y-durableobjects": "^0.3.1"
   }
 }
