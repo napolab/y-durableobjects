@@ -6,17 +6,17 @@ settings:
 
 dependencies:
   js-base64:
-    specifier: ^3.7.6
-    version: 3.7.6
+    specifier: ^3.7.7
+    version: 3.7.7
   lib0:
-    specifier: ^0.2.89
-    version: 0.2.89
+    specifier: ^0.2.93
+    version: 0.2.93
   y-protocols:
     specifier: ^1.0.6
-    version: 1.0.6(yjs@13.6.12)
+    version: 1.0.6(yjs@13.6.15)
   yjs:
-    specifier: ^13.6.12
-    version: 13.6.12
+    specifier: ^13.6.15
+    version: 13.6.15
 
 devDependencies:
   '@changesets/cli':
@@ -3718,8 +3718,8 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
-  /js-base64@3.7.6:
-    resolution: {integrity: sha512-NPrWuHFxFUknr1KqJRDgUQPexQF0uIJWjeT+2KjEePhitQxQEx5EJBG1lVn5/hc8aLycTpXrDOgPQ6Zq+EDiTA==}
+  /js-base64@3.7.7:
+    resolution: {integrity: sha512-7rCnleh0z2CkXhH67J8K1Ytz0b2Y+yxTPL+/KOJoa20hfnVQ/3/T6W/KflYI4bRHRagNeXeU2bkNGI3v1oS/lw==}
     dev: false
 
   /js-tokens@4.0.0:
@@ -3844,8 +3844,8 @@ packages:
       type-check: 0.4.0
     dev: true
 
-  /lib0@0.2.89:
-    resolution: {integrity: sha512-5j19vcCjsQhvLG6mcDD+nprtJUCbmqLz5Hzt5xgi9SV6RIW/Dty7ZkVZHGBuPOADMKjQuKDvuQTH495wsmw8DQ==}
+  /lib0@0.2.93:
+    resolution: {integrity: sha512-M5IKsiFJYulS+8Eal8f+zAqf5ckm1vffW0fFDxfgxJ+uiVopvDdd3PxJmz0GsVi3YNO7QCFSq0nAsiDmNhLj9Q==}
     engines: {node: '>=16'}
     hasBin: true
     dependencies:
@@ -5848,14 +5848,14 @@ packages:
     resolution: {integrity: sha512-ibF0Or+FivM9lNrg+HGJfVX8WJqgo+kCLDc4vx6xMeTce7Aj+DLttKbxxRR/gNLSAelRc1omAPlJ77N/Jem07A==}
     dev: true
 
-  /y-protocols@1.0.6(yjs@13.6.12):
+  /y-protocols@1.0.6(yjs@13.6.15):
     resolution: {integrity: sha512-vHRF2L6iT3rwj1jub/K5tYcTT/mEYDUppgNPXwp8fmLpui9f7Yeq3OEtTLVF012j39QnV+KEQpNqoN7CWU7Y9Q==}
     engines: {node: '>=16.0.0', npm: '>=8.0.0'}
     peerDependencies:
       yjs: ^13.0.0
     dependencies:
-      lib0: 0.2.89
-      yjs: 13.6.12
+      lib0: 0.2.93
+      yjs: 13.6.15
     dev: false
 
   /y18n@4.0.3:
@@ -5923,11 +5923,11 @@ packages:
       yargs-parser: 21.1.1
     dev: true
 
-  /yjs@13.6.12:
-    resolution: {integrity: sha512-KOT8ILoyVH2f/PxPadeu5kVVS055D1r3x1iFfJVJzFdnN98pVGM8H07NcKsO+fG3F7/0tf30Vnokf5YIqhU/iw==}
+  /yjs@13.6.15:
+    resolution: {integrity: sha512-moFv4uNYhp8BFxIk3AkpoAnnjts7gwdpiG8RtyFiKbMtxKCS0zVZ5wPaaGpwC3V2N/K8TK8MwtSI3+WO9CHWjQ==}
     engines: {node: '>=16.0.0', npm: '>=8.0.0'}
     dependencies:
-      lib0: 0.2.89
+      lib0: 0.2.93
     dev: false
 
   /yocto-queue@0.1.0:

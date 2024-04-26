@@ -73,10 +73,10 @@
     "wrangler": "^3.52.0"
   },
   "dependencies": {
-    "js-base64": "^3.7.6",
-    "lib0": "^0.2.89",
+    "js-base64": "^3.7.7",
+    "lib0": "^0.2.93",
     "y-protocols": "^1.0.6",
-    "yjs": "^13.6.12"
+    "yjs": "^13.6.15"
   },
   "peerDependencies": {
     "hono": ">=4.2"
