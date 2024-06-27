@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 0.3.2
+
+### Patch Changes
+
+- 663be81: fix typo package.json keyword
+
 ## 0.3.1
 
 ### Patch Changes
