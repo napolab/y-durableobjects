@@ -4,7 +4,7 @@ import { storageKey } from "./storage-key";
 
 import type { TransactionStorage } from "./type";
 
-interface YTransactionStorage {
+export interface YTransactionStorage {
   getYDoc(): Promise<Doc>;
   storeUpdate(update: Uint8Array): Promise<void>;
   commit(): Promise<void>;
