@@ -68,7 +68,7 @@
     "publint": "^0.2.7",
     "tsup": "^8.0.2",
     "typescript": "^5.5.2",
-    "vitest": "^1.5.0",
+    "vitest": "1.5.0",
     "wrangler": "^3.62.0"
   },
   "dependencies": {
