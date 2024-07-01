@@ -1,5 +1,12 @@
 # y-durableobjects
 
+## 0.4.1
+
+### Patch Changes
+
+- ee6cdf3: update dependencies pacakges
+- a7f594a: export inner modules
+
 ## 0.4.0
 
 ### Minor Changes
