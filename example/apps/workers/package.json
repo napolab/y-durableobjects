@@ -19,6 +19,6 @@
   },
   "dependencies": {
     "hono": "^4.4.10",
-    "y-durableobjects": "https://pkg.pr.new/napolab/y-durableobjects@40"
+    "y-durableobjects": "^0.4.0"
   }
 }

@@ -91,8 +91,8 @@ importers:
         specifier: ^4.4.10
         version: 4.4.10
       y-durableobjects:
-        specifier: https://pkg.pr.new/napolab/y-durableobjects@40
-        version: https://pkg.pr.new/napolab/y-durableobjects@40(hono@4.4.10)
+        specifier: ^0.4.0
+        version: 0.4.0(hono@4.4.10)
     devDependencies:
       '@biomejs/biome':
         specifier: ^1.4.1
@@ -1340,9 +1340,8 @@ packages:
   xxhash-wasm@1.0.2:
     resolution: {integrity: sha512-ibF0Or+FivM9lNrg+HGJfVX8WJqgo+kCLDc4vx6xMeTce7Aj+DLttKbxxRR/gNLSAelRc1omAPlJ77N/Jem07A==}
 
-  y-durableobjects@https://pkg.pr.new/napolab/y-durableobjects@40:
-    resolution: {tarball: https://pkg.pr.new/napolab/y-durableobjects@40}
-    version: 0.3.2
+  y-durableobjects@0.4.0:
+    resolution: {integrity: sha512-7DnatXdH3SufzcgSXoI2oEP6nU+roF9iuGkrvooBM/jE9DCQNJszhXgHDqYexsLlu9x3byo0bcabBgAuo8RG5Q==}
     peerDependencies:
       hono: '>=4.3'
 
@@ -2460,7 +2459,7 @@ snapshots:
 
   xxhash-wasm@1.0.2: {}
 
-  y-durableobjects@https://pkg.pr.new/napolab/y-durableobjects@40(hono@4.4.10):
+  y-durableobjects@0.4.0(hono@4.4.10):
     dependencies:
       hono: 4.4.10
       js-base64: 3.7.7
