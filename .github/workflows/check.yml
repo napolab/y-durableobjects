@@ -3,6 +3,10 @@ name: PR Checks
 on:
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   type-check:
     runs-on: ubuntu-latest
@@ -90,7 +94,3 @@ jobs:
 
       - name: Publint
         run: pnpm run test
-
-concurrency:
-  group: pr-${{ github.head_ref }}
-  cancel-in-progress: true
