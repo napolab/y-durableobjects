@@ -35,8 +35,8 @@ devDependencies:
     specifier: ^8.56.0
     version: 8.56.0
   hono:
-    specifier: ^4.2.2
-    version: 4.2.2
+    specifier: ^4.4.10
+    version: 4.4.10
   npm-run-all:
     specifier: ^4.1.5
     version: 4.1.5
@@ -3398,8 +3398,8 @@ packages:
       function-bind: 1.1.2
     dev: true
 
-  /hono@4.2.2:
-    resolution: {integrity: sha512-mDmjBHF6uBNN3TASdAbDCFsN9FLbrlgXyFZkhLEkU7hUgk0+T9hcsUrL/nho4qV+Xk0RDHx7gop4Q1gelZZVRw==}
+  /hono@4.4.10:
+    resolution: {integrity: sha512-z6918u9rXRU5CCisMHd2uUVoQXcNyUrUMmYY7VH10v4HJG7+hqgMK/G8YNTd13C6s4rBfzF09iz8VpOip9qG3A==}
     engines: {node: '>=16.0.0'}
     dev: true
 

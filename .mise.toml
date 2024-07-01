@@ -1,2 +1,3 @@
 [tools]
-"npm:pnpm" = "8.15.6"
+"npm:pnpm" = "9.4.0"
+node = "20.13.1"
