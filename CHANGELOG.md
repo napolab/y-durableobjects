@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 0.4.0
+
+### Minor Changes
+
+- 0167e63: update hono4.3 client types
+
 ## 0.3.2
 
 ### Patch Changes
