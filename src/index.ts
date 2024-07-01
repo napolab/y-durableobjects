@@ -22,9 +22,13 @@ export const yRoute = <E extends Env>(selector: Selector<E>) => {
     });
     if (res.webSocket === null) return c.body(null, 500);
 
-    return new Response(null, { webSocket: res.webSocket, status: res.status });
+    return new Response(null, {
+      webSocket: res.webSocket,
+      status: res.status,
+      statusText: res.statusText,
+    });
   });
 
   return route;
 };
-export type YRoute = typeof yRoute;
+export type YRoute = ReturnType<typeof yRoute>;

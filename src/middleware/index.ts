@@ -1,12 +1,9 @@
 import { createMiddleware } from "hono/factory";
 
 import type { Env } from "hono";
-import type { UpgradedWebSocketResponseInputJSONType } from "hono/ws";
 
 type Input = {
-  in: {
-    json: UpgradedWebSocketResponseInputJSONType;
-  };
+  outputFormat: "ws";
 };
 
 export const upgrade = <E extends Env, P extends string>() =>
