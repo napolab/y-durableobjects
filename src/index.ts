@@ -33,4 +33,4 @@ export const yRoute = <E extends Env>(selector: Selector<E>) => {
 };
 export type YRoute = ReturnType<typeof yRoute>;
 export type { YTransactionStorage } from "./yjs/storage";
-export { type RemoteDoc, WSSharedDoc } from "./yjs/remote"
+export { type RemoteDoc, WSSharedDoc } from "./yjs/remote";
