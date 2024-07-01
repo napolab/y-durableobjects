@@ -92,5 +92,5 @@ jobs:
       - name: Install dependencies
         run: pnpm i
 
-      - name: Publint
+      - name: test
         run: pnpm run test

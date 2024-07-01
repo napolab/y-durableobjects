@@ -7,7 +7,7 @@ export default defineWorkersProject({
       workers: {
         singleWorker: true,
         wrangler: {
-          configPath: "./wrangler.test.toml",
+          configPath: "./wrangler.toml",
         },
       },
     },
