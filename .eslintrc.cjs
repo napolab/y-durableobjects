@@ -7,4 +7,13 @@ module.exports = {
   rules: {
     "no-restricted-imports": "off",
   },
+  overrides: [
+    {
+      files: ["./test/*.test.*"],
+      rules: {
+        "no-restricted-imports": "off",
+        "import/no-unresolved": "off",
+      },
+    },
+  ],
 };
