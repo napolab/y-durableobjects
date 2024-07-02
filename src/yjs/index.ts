@@ -61,7 +61,11 @@ export class YDurableObjects<T extends Env> implements DurableObject {
       this.state.acceptWebSocket(server);
       this.connect(server);
 
-      return new Response(null, { webSocket: client, status: 101 });
+      return new Response(null, {
+        webSocket: client,
+        status: 101,
+        statusText: "Switching Protocols",
+      });
     });
   }
 

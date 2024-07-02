@@ -15,5 +15,5 @@ export const upgrade = <E extends Env, P extends string>() =>
       });
     }
 
-    return next();
+    await next();
   });
