@@ -136,6 +136,15 @@ describe("YTransactionStorageImpl", () => {
       expect(yStorage).toHaveProperty("MAX_BYTES", 1024);
       expect(yStorage).toHaveProperty("MAX_UPDATES", 100);
     });
+
+    it("throws an error when maxBytes exceeds 128KB", () => {
+      expect(() => {
+        return new YTransactionStorageImpl(storage, {
+          maxBytes: 128 * 1024 + 1,
+          maxUpdates: 100,
+        });
+      }).toThrow("maxBytes must be less than 128KB");
+    });
   });
 
   describe("commit method", () => {

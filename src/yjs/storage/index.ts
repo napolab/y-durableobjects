@@ -11,7 +11,15 @@ export interface YTransactionStorage {
 }
 
 type Options = {
+  /**
+   * @description default is 10KB
+   * @default 10 * 1024 * 1
+   */
   maxBytes?: number;
+  /**
+   * @description default is 500 snapshot
+   * @default 500
+   */
   maxUpdates?: number;
 };
 
@@ -24,7 +32,11 @@ export class YTransactionStorageImpl implements YTransactionStorage {
     private readonly storage: TransactionStorage,
     options?: Options,
   ) {
-    this.MAX_BYTES = options?.maxBytes ?? 1024 * 1024 * 1;
+    this.MAX_BYTES = options?.maxBytes ?? 10 * 1024;
+    if (this.MAX_BYTES > 128 * 1024) {
+      // https://developers.cloudflare.com/durable-objects/platform/limits/
+      throw new Error("maxBytes must be less than 128KB");
+    }
 
     this.MAX_UPDATES = options?.maxUpdates ?? 500;
   }
