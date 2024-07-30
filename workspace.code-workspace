@@ -1,0 +1,20 @@
+{
+  "folders": [
+    {
+      "path": ".",
+    },
+    {
+      "name": "example",
+      "path": "example",
+    },
+    {
+      "name": "example/web",
+      "path": "example/apps/web",
+    },
+    {
+      "name": "example/workers",
+      "path": "example/apps/workers",
+    },
+  ],
+  "settings": {},
+}
