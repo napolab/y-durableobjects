@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 0.4.2
+
+### Patch Changes
+
+- 1c87a94: fix yTansactionStorage maxBytes limits
+
 ## 0.4.1
 
 ### Patch Changes
