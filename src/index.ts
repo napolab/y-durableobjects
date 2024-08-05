@@ -21,12 +21,8 @@ export const yRoute = <E extends Env>(selector: Selector<E>) => {
       fetch: stub.fetch.bind(stub),
     });
     const res = await client.rooms[":roomId"].$get(
-      {
-        param: { roomId: c.req.param("id") },
-      },
-      {
-        init: { headers: c.req.raw.headers },
-      },
+      { param: { roomId: c.req.param("id") } },
+      { init: { headers: c.req.raw.headers } },
     );
 
     return new Response(null, {

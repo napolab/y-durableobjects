@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      js-base64:
-        specifier: ^3.7.7
-        version: 3.7.7
       lib0:
         specifier: ^0.2.94
         version: 0.2.94
@@ -37,8 +34,11 @@ importers:
         specifier: ^8.56.0
         version: 8.56.0
       hono:
-        specifier: ^4.4.10
-        version: 4.4.10
+        specifier: ^4.5.3
+        version: 4.5.3
+      js-base64:
+        specifier: ^3.7.7
+        version: 3.7.7
       npm-run-all:
         specifier: ^4.1.5
         version: 4.1.5
@@ -1763,8 +1763,8 @@ packages:
     resolution: {integrity: sha512-1/th4MHjnwncwXsIW6QMzlvYL9kG5e/CpVvLRZe4XPa8TOUNbCELqmvhDmnkNsAjwaG4+I8gJJL0JBvTTLO9qA==}
     engines: {node: '>= 0.4'}
 
-  hono@4.4.10:
-    resolution: {integrity: sha512-z6918u9rXRU5CCisMHd2uUVoQXcNyUrUMmYY7VH10v4HJG7+hqgMK/G8YNTd13C6s4rBfzF09iz8VpOip9qG3A==}
+  hono@4.5.3:
+    resolution: {integrity: sha512-r26WwwbKD3BAYdfB294knNnegNda7VfV1tVn66D9Kvl9WQTdrR+5eKdoeaQNHQcC3Gr0KBikzAtjd6VsRGVSaw==}
     engines: {node: '>=16.0.0'}
 
   hosted-git-info@2.8.9:
@@ -4998,7 +4998,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.4.10: {}
+  hono@4.5.3: {}
 
   hosted-git-info@2.8.9: {}
 

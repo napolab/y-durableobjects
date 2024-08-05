@@ -1,9 +1,11 @@
 /* eslint-disable import/no-unresolved */
 import "cloudflare:test";
-import { InternalYDurableObject } from "../yjs/internal";
+import { YDurableObjects } from "../yjs";
+
+interface CloudflareEnv {
+  Y_DURABLE_OBJECTS: DurableObjectNamespace<YDurableObjects>;
+}
 
 declare module "cloudflare:test" {
-  interface ProvidedEnv {
-    Y_DURABLE_OBJECTS: DurableObjectNamespace<InternalYDurableObject>;
-  }
+  interface ProvidedEnv extends CloudflareEnv {}
 }

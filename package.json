@@ -28,6 +28,23 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./helpers/upgrade": {
+      "import": {
+        "types": "./dist/helpers/upgrade.d.ts",
+        "default": "./dist/helpers/upgrade.js"
+      },
+      "require": {
+        "types": "./dist/helpers/upgrade.d.cts",
+        "default": "./dist/helpers/upgrade.cjs"
+      }
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "helpers": [
+        "./dist/helpers"
+      ]
     }
   },
   "scripts": {
@@ -62,7 +79,8 @@
     "@cloudflare/workers-types": "^4.20240729.0",
     "@naporin0624/eslint-config": "^0.14.0",
     "eslint": "^8.56.0",
-    "hono": "^4.4.10",
+    "hono": "^4.5.3",
+    "js-base64": "^3.7.7",
     "npm-run-all": "^4.1.5",
     "prettier": "^3.2.5",
     "publint": "^0.2.7",
@@ -72,7 +90,6 @@
     "wrangler": "^3.62.0"
   },
   "dependencies": {
-    "js-base64": "^3.7.7",
     "lib0": "^0.2.94",
     "y-protocols": "^1.0.6",
     "yjs": "^13.6.18"

@@ -13,4 +13,12 @@ module.exports = {
       },
     ],
   },
+  overrides: [
+    {
+      files: ["src/e2e/**/*"],
+      rules: {
+        "import/no-extraneous-dependencies": "off",
+      },
+    },
+  ],
 };
