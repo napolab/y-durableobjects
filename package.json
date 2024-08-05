@@ -78,7 +78,7 @@
     "yjs": "^13.6.18"
   },
   "peerDependencies": {
-    "@cloudflare/workers-types": ">=4.20240208.0",
+    "@cloudflare/workers-types": ">=4.20240405.0",
     "hono": ">=4.3"
   },
   "packageManager": "pnpm@9.4.0"
