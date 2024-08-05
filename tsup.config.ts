@@ -3,7 +3,7 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: {
     index: "src/index.ts",
-    "helpers/upgrade": "src/middleware/upgrade/index.ts",
+    "helpers/upgrade": "src/middleware/index.ts",
   },
   sourcemap: true,
   dts: {
