@@ -138,7 +138,7 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     }
   }
 
-  private async cleanup() {
+  protected async cleanup() {
     if (this.sessions.size < 1) {
       await this.storage.commit();
     }
