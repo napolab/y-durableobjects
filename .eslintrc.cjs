@@ -6,5 +6,11 @@ module.exports = {
   },
   rules: {
     "no-restricted-imports": "off",
+    "import/no-unresolved": [
+      "error",
+      {
+        ignore: ["^cloudflare:.*$"],
+      },
+    ],
   },
 };

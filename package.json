@@ -58,7 +58,7 @@
   ],
   "devDependencies": {
     "@changesets/cli": "^2.27.7",
-    "@cloudflare/vitest-pool-workers": "^0.4.7",
+    "@cloudflare/vitest-pool-workers": "^0.4.17",
     "@cloudflare/workers-types": "^4.20240729.0",
     "@naporin0624/eslint-config": "^0.14.0",
     "eslint": "^8.56.0",
