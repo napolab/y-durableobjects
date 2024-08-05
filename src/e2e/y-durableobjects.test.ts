@@ -82,7 +82,7 @@ describe("YDurableObjects", () => {
       const update = createSyncMessage(message);
       await instance.updateYDoc(update);
 
-      const docState = instance.getYDoc();
+      const docState = await instance.getYDoc();
       expect(docState).toEqual(message);
     });
   });
