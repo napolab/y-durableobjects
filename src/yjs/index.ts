@@ -1,24 +1,31 @@
-/* eslint-disable import/no-unresolved */
 import { DurableObject } from "cloudflare:workers";
-import { Hono } from "hono";
 import { removeAwarenessStates } from "y-protocols/awareness";
 import { applyUpdate, encodeStateAsUpdate } from "yjs";
 
-import { upgrade } from "../middleware";
 import { WSSharedDoc } from "../yjs/remote";
 
 import { setupWSConnection } from "./client/setup";
+import { createApp } from "./hono";
 import { YTransactionStorageImpl } from "./storage";
 
 import type { AwarenessChanges } from "../yjs/remote";
 import type { Env } from "hono";
 
+export type WebSocketAttachment = {
+  roomId: string;
+  connectedAt: Date;
+};
+
+export type YDurableObjectsAppType = ReturnType<typeof createApp>;
+
 export class YDurableObjects<T extends Env> extends DurableObject<
   T["Bindings"]
 > {
-  private app = new Hono<T>();
-  private doc = new WSSharedDoc();
-  private storage = new YTransactionStorageImpl({
+  protected app = createApp({
+    createRoom: this.createRoom.bind(this),
+  });
+  protected doc = new WSSharedDoc();
+  protected storage = new YTransactionStorageImpl({
     get: (key) => this.state.storage.get(key),
     list: (options) => this.state.storage.list(options),
     put: (key, value) => this.state.storage.put(key, value),
@@ -26,7 +33,7 @@ export class YDurableObjects<T extends Env> extends DurableObject<
       this.state.storage.delete(Array.isArray(key) ? key : [key]),
     transaction: (closure) => this.state.storage.transaction(closure),
   });
-  private sessions = new Map<WebSocket, () => void>();
+  protected sessions = new Map<WebSocket, () => void>();
   private awarenessClients = new Set<number>();
 
   constructor(
@@ -35,14 +42,16 @@ export class YDurableObjects<T extends Env> extends DurableObject<
   ) {
     super(state, env);
 
-    void this.state.blockConcurrencyWhile(async () => {
-      const doc = await this.storage.getYDoc();
-      applyUpdate(this.doc, encodeStateAsUpdate(doc));
+    void this.state.blockConcurrencyWhile(this.onStart.bind(this));
+  }
 
-      for (const ws of this.state.getWebSockets()) {
-        this.connect(ws);
-      }
-    });
+  protected async onStart(): Promise<void> {
+    const doc = await this.storage.getYDoc();
+    applyUpdate(this.doc, encodeStateAsUpdate(doc));
+
+    for (const ws of this.state.getWebSockets()) {
+      this.registerWebSocket(ws);
+    }
 
     this.doc.on("update", async (update) => {
       await this.storage.storeUpdate(update);
@@ -58,27 +67,32 @@ export class YDurableObjects<T extends Env> extends DurableObject<
         }
       },
     );
-
-    this.app.get("/", upgrade(), async () => {
-      const pair = new WebSocketPair();
-      const client = pair[0];
-      const server = pair[1];
-
-      this.state.acceptWebSocket(server);
-      this.connect(server);
-
-      return new Response(null, { webSocket: client, status: 101 });
-    });
   }
 
-  async fetch(request: Request): Promise<Response> {
+  protected createRoom(roomId: string) {
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+    server.serializeAttachment({
+      roomId,
+      connectedAt: new Date(),
+    } satisfies WebSocketAttachment);
+
+    this.state.acceptWebSocket(server);
+    this.registerWebSocket(server);
+
+    return client;
+  }
+
+  fetch(request: Request): Response | Promise<Response> {
     return this.app.request(request, undefined, this.env);
   }
 
-  updateYDoc(update: Uint8Array): void {
-    return this.doc.update(update);
+  async updateYDoc(update: Uint8Array): Promise<void> {
+    this.doc.update(update);
+    await this.cleanup();
   }
-  getYDoc(): Uint8Array {
+  async getYDoc(): Promise<Uint8Array> {
     return encodeStateAsUpdate(this.doc);
   }
 
@@ -89,20 +103,20 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     if (!(message instanceof ArrayBuffer)) return;
 
     const update = new Uint8Array(message);
-    this.updateYDoc(update);
+    await this.updateYDoc(update);
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
-    await this.disconnect(ws);
+    await this.unregisterWebSocket(ws);
     await this.cleanup();
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
-    await this.disconnect(ws);
+    await this.unregisterWebSocket(ws);
     await this.cleanup();
   }
 
-  private connect(ws: WebSocket) {
+  protected registerWebSocket(ws: WebSocket) {
     setupWSConnection(ws, this.doc);
     const s = this.doc.notify((message) => {
       ws.send(message);
@@ -110,7 +124,7 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     this.sessions.set(ws, s);
   }
 
-  private async disconnect(ws: WebSocket) {
+  protected async unregisterWebSocket(ws: WebSocket) {
     try {
       const dispose = this.sessions.get(ws);
       dispose?.();
