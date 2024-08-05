@@ -9,5 +9,5 @@ export default defineConfig({
   splitting: true,
   clean: true,
   format: ["cjs", "esm"],
-  external: ["hono"],
+  external: ["hono", /cloudflare:/],
 });
