@@ -1,3 +1,5 @@
+/* eslint-disable import/no-unresolved */
+import { DurableObject } from "cloudflare:workers";
 import { Hono } from "hono";
 import { removeAwarenessStates } from "y-protocols/awareness";
 import { applyUpdate, encodeStateAsUpdate } from "yjs";
@@ -11,7 +13,9 @@ import { YTransactionStorageImpl } from "./storage";
 import type { AwarenessChanges } from "../yjs/remote";
 import type { Env } from "hono";
 
-export class YDurableObjects<T extends Env> implements DurableObject {
+export class YDurableObjects<T extends Env> extends DurableObject<
+  T["Bindings"]
+> {
   private app = new Hono<T>();
   private doc = new WSSharedDoc();
   private storage = new YTransactionStorageImpl({
@@ -26,9 +30,11 @@ export class YDurableObjects<T extends Env> implements DurableObject {
   private awarenessClients = new Set<number>();
 
   constructor(
-    private readonly state: DurableObjectState,
-    private readonly env: T["Bindings"],
+    public state: DurableObjectState,
+    public env: T["Bindings"],
   ) {
+    super(state, env);
+
     void this.state.blockConcurrencyWhile(async () => {
       const doc = await this.storage.getYDoc();
       applyUpdate(this.doc, encodeStateAsUpdate(doc));
@@ -69,6 +75,13 @@ export class YDurableObjects<T extends Env> implements DurableObject {
     return this.app.request(request, undefined, this.env);
   }
 
+  updateYDoc(update: Uint8Array): void {
+    return this.doc.update(update);
+  }
+  getYDoc(): Uint8Array {
+    return encodeStateAsUpdate(this.doc);
+  }
+
   async webSocketMessage(
     ws: WebSocket,
     message: string | ArrayBuffer,
@@ -76,7 +89,7 @@ export class YDurableObjects<T extends Env> implements DurableObject {
     if (!(message instanceof ArrayBuffer)) return;
 
     const update = new Uint8Array(message);
-    this.doc.update(update);
+    this.updateYDoc(update);
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
