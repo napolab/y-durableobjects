@@ -18,13 +18,13 @@ describe("yRoute Shorthand", () => {
     expect(res.webSocket).toBeInstanceOf(WebSocket);
   });
 
-  it("has no header", async () => {
+  it("should return status 426 if no headers are present", async () => {
     const res = await SELF.fetch("http://localhost/shorthand/1");
     expect(res.status).toBe(426);
     await expect(res.text()).resolves.toBe("Expected websocket");
   });
 
-  it("check typing", () => {
+  it("should verify the typing of the shorthand route", () => {
     const client = hc<AppType>("http://localhost", {
       fetch: SELF.fetch.bind(SELF),
     });
@@ -36,7 +36,7 @@ describe("yRoute Shorthand", () => {
 });
 
 describe("endpoint request", () => {
-  it("should return a response", async () => {
+  it("should return a WebSocket response", async () => {
     const res = await SELF.fetch("http://localhost/rooms/1", {
       headers: { Upgrade: "websocket" },
     });
@@ -44,13 +44,13 @@ describe("endpoint request", () => {
     expect(res.webSocket).toBeInstanceOf(WebSocket);
   });
 
-  it("has no header", async () => {
+  it("should return status 426 if no headers are present", async () => {
     const res = await SELF.fetch("http://localhost/rooms/1");
     expect(res.status).toBe(426);
     await expect(res.text()).resolves.toBe("Expected websocket");
   });
 
-  it("get YDoc", async () => {
+  it("should get the YDoc state", async () => {
     const roomId = "1";
     const id = env.Y_DURABLE_OBJECTS.idFromName(roomId);
     const stub = env.Y_DURABLE_OBJECTS.get(id);
@@ -68,7 +68,7 @@ describe("endpoint request", () => {
     expect(json).toEqual({ doc: fromUint8Array(message) });
   });
 
-  it("update YDoc", async () => {
+  it("should update the YDoc state", async () => {
     const message = createYDocMessage("get state");
     const update = createSyncMessage(message);
 
