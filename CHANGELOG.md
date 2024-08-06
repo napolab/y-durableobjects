@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 1.0.2
+
+### Patch Changes
+
+- a10b1df: update lib0
+
 ## 1.0.1
 
 ### Patch Changes
