@@ -42,8 +42,8 @@ importers:
         specifier: ^0.13.1
         version: 0.13.1(lexical@0.13.1)
       hono:
-        specifier: ^4.4.10
-        version: 4.4.10
+        specifier: ^4.5.3
+        version: 4.5.3
       lexical:
         specifier: ^0.13.1
         version: 0.13.1
@@ -924,10 +924,6 @@ packages:
   hasown@2.0.2:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
-
-  hono@4.4.10:
-    resolution: {integrity: sha512-z6918u9rXRU5CCisMHd2uUVoQXcNyUrUMmYY7VH10v4HJG7+hqgMK/G8YNTd13C6s4rBfzF09iz8VpOip9qG3A==}
-    engines: {node: '>=16.0.0'}
 
   hono@4.5.3:
     resolution: {integrity: sha512-r26WwwbKD3BAYdfB294knNnegNda7VfV1tVn66D9Kvl9WQTdrR+5eKdoeaQNHQcC3Gr0KBikzAtjd6VsRGVSaw==}
@@ -2035,8 +2031,6 @@ snapshots:
   hasown@2.0.2:
     dependencies:
       function-bind: 1.1.2
-
-  hono@4.4.10: {}
 
   hono@4.5.3: {}
 
