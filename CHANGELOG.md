@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 1.0.1
+
+### Patch Changes
+
+- d9839ce: change readme hono env description
+
 ## 1.0.0
 
 ### Major Changes
