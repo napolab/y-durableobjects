@@ -54,24 +54,6 @@ tag = "v1"
 new_classes = ["YDurableObjects"]
 ```
 
-## Extending Hono with Bindings
-
-To integrate `y-durableobjects` with Hono, extend the `Env` interface to include the `Bindings` type for better type safety and IntelliSense support in your editor.
-
-```typescript
-export type Bindings = {
-  Y_DURABLE_OBJECTS: DurableObjectNamespace;
-};
-
-declare module "hono" {
-  interface Env {
-    Bindings: Bindings;
-  }
-}
-```
-
-This allows you to use `Y_DURABLE_OBJECTS` directly in your Hono application with full type support.
-
 ## Usage
 
 ### With Hono shorthand
@@ -80,11 +62,19 @@ This allows you to use `Y_DURABLE_OBJECTS` directly in your Hono application wit
 import { Hono } from "hono";
 import { YDurableObjects, yRoute } from "y-durableobjects";
 
-const app = new Hono();
+type Bindings = {
+  Y_DURABLE_OBJECTS: DurableObjectNamespace<YDurableObjects<Env>>;
+};
+
+type Env = {
+  Bindings: Bindings;
+};
+
+const app = new Hono<Env>();
 
 const route = app.route(
   "/editor",
-  yRoute((env) => env.Y_DURABLE_OBJECTS),
+  yRoute<Env>((env) => env.Y_DURABLE_OBJECTS),
 );
 
 export default route;
@@ -101,7 +91,15 @@ import { Hono } from "hono";
 import { YDurableObjects, type YDurableObjectsAppType } from "y-durableobjects";
 import { upgrade } from "y-durableobjects/helpers/upgrade";
 
-const app = new Hono();
+type Bindings = {
+  Y_DURABLE_OBJECTS: DurableObjectNamespace<YDurableObjects<Env>>;
+};
+
+type Env = {
+  Bindings: Bindings;
+};
+
+const app = new Hono<Env>();
 app.get("/editor/:id", upgrade(), async (c) => {
   const id = c.env.Y_DURABLE_OBJECTS.idFromName(c.req.param("id"));
   const stub = c.env.Y_DURABLE_OBJECTS.get(id);
@@ -143,7 +141,15 @@ import { Hono } from "hono";
 import { YDurableObjects } from "y-durableobjects";
 import { fromUint8Array } from "js-base64";
 
-const app = new Hono();
+type Bindings = {
+  Y_DURABLE_OBJECTS: DurableObjectNamespace<YDurableObjects<Env>>;
+};
+
+type Env = {
+  Bindings: Bindings;
+};
+
+const app = new Hono<Env>();
 
 app.get("/rooms/:id/state", async (c) => {
   const roomId = c.req.param("id");
@@ -170,7 +176,15 @@ Example usage in Hono:
 import { Hono } from "hono";
 import { YDurableObjects } from "y-durableobjects";
 
-const app = new Hono();
+type Bindings = {
+  Y_DURABLE_OBJECTS: DurableObjectNamespace<YDurableObjects<Env>>;
+};
+
+type Env = {
+  Bindings: Bindings;
+};
+
+const app = new Hono<Env>();
 
 app.post("/rooms/:id/update", async (c) => {
   const roomId = c.req.param("id");
@@ -224,10 +238,18 @@ export class CustomDurableObject extends YDurableObjects {
 import { Hono } from "hono";
 import { YDurableObjects, yRoute } from "y-durableobjects";
 
-const app = new Hono();
+type Bindings = {
+  Y_DURABLE_OBJECTS: DurableObjectNamespace<YDurableObjects<Env>>;
+};
+
+type Env = {
+  Bindings: Bindings;
+};
+
+const app = new Hono<Env>();
 const route = app.route(
   "/editor",
-  yRoute((env) => env.Y_DURABLE_OBJECTS),
+  yRoute<Env>((env) => env.Y_DURABLE_OBJECTS),
 );
 
 export default route;
@@ -242,7 +264,15 @@ import { Hono } from "hono";
 import { YDurableObjects, YDurableObjectsAppType } from "y-durableobjects";
 import { upgrade } from "y-durableobjects/helpers/upgrade";
 
-const app = new Hono();
+type Bindings = {
+  Y_DURABLE_OBJECTS: DurableObjectNamespace<YDurableObjects<Env>>;
+};
+
+type Env = {
+  Bindings: Bindings;
+};
+
+const app = new Hono<Env>();
 app.get("/editor/:id", upgrade(), async (c) => {
   const id = c.env.Y_DURABLE_OBJECTS.idFromName(c.req.param("id"));
   const stub = c.env.Y_DURABLE_OBJECTS.get(id);
