@@ -6,5 +6,19 @@ module.exports = {
   },
   rules: {
     "no-restricted-imports": "off",
+    "import/no-unresolved": [
+      "error",
+      {
+        ignore: ["^cloudflare:.*$"],
+      },
+    ],
   },
+  overrides: [
+    {
+      files: ["src/e2e/**/*"],
+      rules: {
+        "import/no-extraneous-dependencies": "off",
+      },
+    },
+  ],
 };

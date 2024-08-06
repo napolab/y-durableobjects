@@ -1,7 +1,10 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: {
+    index: "src/index.ts",
+    "helpers/upgrade": "src/middleware/index.ts",
+  },
   sourcemap: true,
   dts: {
     banner: '/// <reference types="@cloudflare/workers-types" />',
@@ -9,5 +12,5 @@ export default defineConfig({
   splitting: true,
   clean: true,
   format: ["cjs", "esm"],
-  external: ["hono"],
+  external: ["hono", /cloudflare:/],
 });

@@ -11,7 +11,7 @@ import { WSSharedDoc } from "./ws-shared-doc";
 import type { Mock } from "vitest";
 
 // Helper to create updates based on document type
-const messageUpdate = (content: string = "Hello World!") => {
+const createYDocMessage = (content: string = "Hello World!") => {
   const doc = new Doc();
   doc.getText("root").insert(0, content);
 
@@ -53,7 +53,7 @@ describe("WSSharedDoc", () => {
 
   describe("Handling Yjs Updates", () => {
     it("should process Yjs updates and notify listeners", () => {
-      const update = messageUpdate("Hello, world!");
+      const update = createYDocMessage("Hello, world!");
       const message = createSyncMessage(update);
 
       doc.update(message);
@@ -70,8 +70,8 @@ describe("WSSharedDoc", () => {
     it("should add and remove listeners correctly", () => {
       const anotherListener = vi.fn();
       const unsubscribe = doc.notify(anotherListener);
-      const message1 = createSyncMessage(messageUpdate("text1"));
-      const message2 = createSyncMessage(messageUpdate("text2"));
+      const message1 = createSyncMessage(createYDocMessage("text1"));
+      const message2 = createSyncMessage(createYDocMessage("text2"));
 
       doc.update(message1);
 
