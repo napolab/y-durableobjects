@@ -6,7 +6,7 @@ The `y-durableobjects` library is designed to facilitate real-time collaboration
 
 ## Requirements
 
-- Hono version 4.2 or higher is required.
+- Hono version 4.3 or higher is required.
 
 ## Installation
 
