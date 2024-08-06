@@ -13,12 +13,12 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.4.1",
-    "@cloudflare/workers-types": "^4.20231218.0",
-    "typescript": "^5.2.2",
-    "wrangler": "^3.51.2"
+    "@cloudflare/workers-types": "^4.20240729.0",
+    "typescript": "^5.5.4",
+    "wrangler": "^3.68.0"
   },
   "dependencies": {
-    "hono": "^4.4.10",
-    "y-durableobjects": "^0.4.0"
+    "hono": "^4.5.3",
+    "y-durableobjects": "^1.0.0"
   }
 }

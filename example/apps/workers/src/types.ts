@@ -1,9 +1,9 @@
-export type Bindings = {
-  Y_DURABLE_OBJECTS: DurableObjectNamespace;
+import type { YDurableObjects } from "y-durableobjects";
+
+type Bindings = {
+  Y_DURABLE_OBJECTS: DurableObjectNamespace<YDurableObjects<Env>>;
 };
 
-declare module "hono" {
-  interface Env {
-    Bindings: Bindings;
-  }
-}
+export type Env = {
+  Bindings: Bindings;
+};
