@@ -105,7 +105,7 @@ app.get("/editor/:id", upgrade(), async (c) => {
   const stub = c.env.Y_DURABLE_OBJECTS.get(id);
 
   const url = new URL("/", c.req.url);
-  const client = hc<YDurableObjectsAppType>(url, {
+  const client = hc<YDurableObjectsAppType>(url.toString(), {
     fetch: stub.fetch.bind(stub),
   });
 
