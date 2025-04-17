@@ -5,14 +5,16 @@
     "moduleResolution": "Bundler",
     "esModuleInterop": true,
     "strict": true,
-    "lib": ["esnext"],
+    "lib": ["ESNext"],
     "types": [
-      "@cloudflare/workers-types",
+      "@cloudflare/workers-types/2023-07-01",
+      "@cloudflare/vitest-pool-workers",
       "vitest/globals",
-      "@cloudflare/vitest-pool-workers"
+      "@cloudflare/workers-types/experimental"
     ],
     "noEmit": true,
-    "skipLibCheck": true
-  },
-  "include": ["src"]
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
 }

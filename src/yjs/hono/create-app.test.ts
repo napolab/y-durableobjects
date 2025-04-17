@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { vi } from "vitest";
 
 import { createApp } from ".";
 

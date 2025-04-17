@@ -24,11 +24,13 @@ describe("yRoute Shorthand", () => {
     await expect(res.text()).resolves.toBe("Expected websocket");
   });
 
+  // eslint-disable-next-line vitest/expect-expect
   it("should verify the typing of the shorthand route", () => {
     const client = hc<AppType>("http://localhost", {
       fetch: SELF.fetch.bind(SELF),
     });
 
+    // eslint-disable-next-line no-undef
     expectTypeOf(client.shorthand[":id"].$ws).toEqualTypeOf<
       (args?: { param: { id: string } } | undefined) => WebSocket
     >();
