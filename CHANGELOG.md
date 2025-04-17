@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 1.0.4
+
+### Patch Changes
+
+- 3faf6a2: upgrade dependencies
+
 ## 1.0.3
 
 ### Patch Changes
