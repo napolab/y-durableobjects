@@ -25,6 +25,7 @@ const config = [
       "worker-configuration.d.ts",
       ".wrangler",
       "example/**",
+      "*.config.js",
     ],
   },
   {
@@ -32,6 +33,10 @@ const config = [
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: "module",
+      parser: tseslint.parser,
+      parserOptions: {
+        project: true,
+      },
     },
     rules: {
       "no-void": "off",
@@ -55,7 +60,7 @@ const config = [
   {
     files: ["**/*.{js,ts,tsx}"],
     languageOptions: {
-      ecmaVersion: 2022,
+      ecmaVersion: 2024,
       sourceType: "module",
       parser: tseslint.parser,
       parserOptions: {
@@ -171,7 +176,7 @@ const config = [
     },
     languageOptions: {
       globals: {
-        ...globals.jest,
+        ...globals.vitest,
       },
     },
     rules: {

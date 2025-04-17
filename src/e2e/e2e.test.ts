@@ -30,7 +30,6 @@ describe("yRoute Shorthand", () => {
       fetch: SELF.fetch.bind(SELF),
     });
 
-    // eslint-disable-next-line no-undef
     expectTypeOf(client.shorthand[":id"].$ws).toEqualTypeOf<
       (args?: { param: { id: string } } | undefined) => WebSocket
     >();
