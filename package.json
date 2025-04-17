@@ -74,7 +74,7 @@
     "yjs"
   ],
   "devDependencies": {
-    "@changesets/cli": "^2.27.7",
+    "@changesets/cli": "^2.29.2",
     "@cloudflare/vitest-pool-workers": "^0.8.18",
     "@cloudflare/workers-types": "^4.20250417.0",
     "@eslint/compat": "^1.2.8",
@@ -94,25 +94,25 @@
     "eslint-plugin-unicorn": "^58.0.0",
     "eslint-plugin-unused-imports": "^4.1.4",
     "globals": "^16.0.0",
-    "hono": "^4.5.3",
+    "hono": "^4.7.7",
     "js-base64": "^3.7.7",
     "npm-run-all": "^4.1.5",
-    "prettier": "^3.2.5",
-    "publint": "^0.2.7",
+    "prettier": "^3.5.3",
+    "publint": "^0.3.12",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.30.1",
     "vitest": "3.0.9",
-    "wrangler": "^3.62.0"
+    "wrangler": "^4.12.0"
   },
   "dependencies": {
-    "lib0": "^0.2.96",
+    "lib0": "^0.2.104",
     "y-protocols": "^1.0.6",
-    "yjs": "^13.6.18"
+    "yjs": "^13.6.24"
   },
   "peerDependencies": {
     "@cloudflare/workers-types": ">=4.20240405.0",
     "hono": ">=4.3"
   },
-  "packageManager": "pnpm@9.4.0"
+  "packageManager": "pnpm@10.8.1"
 }
