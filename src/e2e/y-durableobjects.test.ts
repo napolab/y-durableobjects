@@ -61,7 +61,7 @@ describe("YDurableObjects", () => {
     await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
       const message = createYDocMessage();
       const update = createSyncMessage(message);
-      await instance.updateYDoc(update);
+      await instance.updateYDoc(update.slice(0));
 
       const docState = await instance.getYDoc();
       expect(docState).toEqual(message);
@@ -78,7 +78,7 @@ describe("YDurableObjects", () => {
 
       const message = createYDocMessage();
       const update = createSyncMessage(message);
-      await instance.webSocketMessage(client, update.buffer);
+      await instance.webSocketMessage(client, update.slice(0).buffer);
 
       const docState = await instance.getYDoc();
       expect(docState).toEqual(message);

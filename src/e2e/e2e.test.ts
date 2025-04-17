@@ -60,7 +60,7 @@ describe("endpoint request", () => {
     const update = createSyncMessage(message);
 
     await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
-      await instance.updateYDoc(update);
+      await instance.updateYDoc(update.slice(0));
     });
 
     const res = await SELF.fetch(`http://localhost/rooms/${roomId}/state`);
@@ -80,7 +80,7 @@ describe("endpoint request", () => {
 
     const res = await SELF.fetch(`http://localhost/rooms/${roomId}/update`, {
       method: "POST",
-      body: update.buffer,
+      body: update.slice(0).buffer,
     });
     expect(res.status).toBe(200);
 
