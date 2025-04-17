@@ -1,5 +1,11 @@
 # y-durableobjects
 
+## 1.0.3
+
+### Patch Changes
+
+- 5049074: migrate eslint config to flatconfig
+
 ## 1.0.2
 
 ### Patch Changes
