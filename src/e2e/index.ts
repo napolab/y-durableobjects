@@ -63,6 +63,6 @@ const route = app
     return c.json(null, 200);
   });
 
-export default app;
+export default route;
 export type AppType = typeof route;
 export { YDurableObjects };

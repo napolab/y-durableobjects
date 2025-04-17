@@ -1,4 +1,5 @@
 import { createDecoder, readVarUint, readVarUint8Array } from "lib0/decoding";
+import { vi } from "vitest";
 import { Awareness } from "y-protocols/awareness";
 import { Doc } from "yjs";
 

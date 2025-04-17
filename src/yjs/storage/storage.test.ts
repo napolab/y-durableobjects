@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { Doc, encodeStateAsUpdate } from "yjs";
 
 import { storageKey } from "./storage-key";

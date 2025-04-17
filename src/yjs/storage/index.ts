@@ -27,7 +27,6 @@ export class YTransactionStorageImpl implements YTransactionStorage {
   private readonly MAX_BYTES: number;
   private readonly MAX_UPDATES: number;
 
-  // eslint-disable-next-line no-useless-constructor
   constructor(
     private readonly storage: TransactionStorage,
     options?: Options,

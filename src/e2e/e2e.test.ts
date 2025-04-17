@@ -24,6 +24,7 @@ describe("yRoute Shorthand", () => {
     await expect(res.text()).resolves.toBe("Expected websocket");
   });
 
+  // eslint-disable-next-line vitest/expect-expect
   it("should verify the typing of the shorthand route", () => {
     const client = hc<AppType>("http://localhost", {
       fetch: SELF.fetch.bind(SELF),
@@ -58,7 +59,7 @@ describe("endpoint request", () => {
     const update = createSyncMessage(message);
 
     await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
-      await instance.updateYDoc(update);
+      await instance.updateYDoc(update.slice(0));
     });
 
     const res = await SELF.fetch(`http://localhost/rooms/${roomId}/state`);
@@ -78,7 +79,7 @@ describe("endpoint request", () => {
 
     const res = await SELF.fetch(`http://localhost/rooms/${roomId}/update`, {
       method: "POST",
-      body: update.buffer,
+      body: update.slice(0).buffer,
     });
     expect(res.status).toBe(200);
 
