@@ -9,7 +9,7 @@ concurrency:
 
 env:
   NODE_VERSION: "22.14.0"
-  PNPM_VERSION: "10.7.1"
+  PNPM_VERSION: "10.8.1"
 
 jobs:
   type-check:
