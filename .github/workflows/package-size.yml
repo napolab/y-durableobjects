@@ -7,6 +7,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: "22.14.0"
+
 jobs:
   pkg-size-report:
     name: Package Size Report
@@ -19,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Package size report
         uses: pkg-size/action@v1
