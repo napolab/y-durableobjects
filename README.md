@@ -313,3 +313,36 @@ export const client = hc<AppType>(API_URL);
 const ws = client.editor[":id"].$ws({ param: { id: "example" } });
 //    ^?const ws: WebSocket
 ```
+
+## Troubleshooting
+
+### Cloudflare Env Type Collision
+
+If you encounter TypeScript errors related to `Cloudflare.Env` type being empty or undefined, this is likely due to a type collision issue.
+
+#### Problem
+
+The issue occurs because `y-durableobjects` requires `@cloudflare/workers-types` as a peer dependency, which can create an empty `Cloudflare.Env` interface in `node_modules`. This empty interface overwrites your project's custom environment types and causes the `worker-configuration.d.ts` file generated from `wrangler@4` to be ignored.
+
+#### Solution
+
+If `Cloudflare.Env` remains empty even after upgrading to the latest `y-durableobjects` version, follow these steps:
+
+1. **Check for remaining dependencies:**
+   ```bash
+   pnpm why @cloudflare/workers-types
+   ```
+
+2. **Clean install dependencies:**
+   ```bash
+   # Delete lock files and node_modules
+   rm -rf node_modules pnpm-lock.yaml
+   # Reinstall dependencies
+   pnpm install
+   ```
+
+3. **Verify the fix:**
+   Run `pnpm why @cloudflare/workers-types` again. If it returns nothing, the issue is resolved.
+
+This issue was addressed in [PR #62](https://github.com/napolab/y-durableobjects/pull/62), but residual `@cloudflare/workers-types` dependencies from `wrangler` may still remain in your lock file until you perform a clean install.
+```
