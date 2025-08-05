@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="assets/y-durableobjects-icon.png" alt="y-durableobjects logo" width="128" height="128">
+</div>
+
 # y-durableobjects
 
 [![Yjs on Cloudflare Workers with Durable Objects Demo Movie](https://i.gyazo.com/e94637740dbb11fc5107b0cd0850326d.gif)](https://gyazo.com/e94637740dbb11fc5107b0cd0850326d)
