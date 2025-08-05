@@ -76,7 +76,6 @@
   "devDependencies": {
     "@changesets/cli": "^2.29.2",
     "@cloudflare/vitest-pool-workers": "^0.8.18",
-    "@cloudflare/workers-types": "^4.20250417.0",
     "@eslint/compat": "^1.2.8",
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.24.0",
@@ -111,7 +110,6 @@
     "yjs": "^13.6.24"
   },
   "peerDependencies": {
-    "@cloudflare/workers-types": ">=4.20240405.0",
     "hono": ">=4.3"
   },
   "packageManager": "pnpm@10.8.1"
