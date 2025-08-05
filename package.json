@@ -58,7 +58,8 @@
     "fmt:eslint": "eslint . --ext .ts,.tsx --fix",
     "publint": "publint",
     "release": "changeset publish",
-    "test": "vitest --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --passWithNoTests"
   },
   "author": "naporin0624",
   "files": [
