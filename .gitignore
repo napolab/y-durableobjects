@@ -2,3 +2,5 @@ node_modules
 .turbo
 dist
 build
+.mcp.json
+.claude/

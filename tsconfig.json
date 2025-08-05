@@ -6,12 +6,7 @@
     "esModuleInterop": true,
     "strict": true,
     "lib": ["ESNext"],
-    "types": [
-      "@cloudflare/workers-types/2023-07-01",
-      "@cloudflare/vitest-pool-workers",
-      "vitest/globals",
-      "@cloudflare/workers-types/experimental"
-    ],
+    "types": ["@cloudflare/vitest-pool-workers", "vitest/globals"],
     "noEmit": true,
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
