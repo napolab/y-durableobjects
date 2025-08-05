@@ -359,7 +359,3 @@ If `Cloudflare.Env` remains empty even after upgrading to the latest `y-durableo
    Run `pnpm why @cloudflare/workers-types` again. If it returns nothing, the issue is resolved.
 
 This issue was addressed in [PR #62](https://github.com/napolab/y-durableobjects/pull/62), but residual `@cloudflare/workers-types` dependencies from `wrangler` may still remain in your lock file until you perform a clean install.
-
-```
-
-```
