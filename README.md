@@ -322,18 +322,32 @@ If you encounter TypeScript errors related to `Cloudflare.Env` type being empty 
 
 #### Problem
 
-The issue occurs because `y-durableobjects` requires `@cloudflare/workers-types` as a peer dependency, which can create an empty `Cloudflare.Env` interface in `node_modules`. This empty interface overwrites your project's custom environment types and causes the `worker-configuration.d.ts` file generated from `wrangler@4` to be ignored.
+The issue occurs because `y-durableobjects` requires `@cloudflare/workers-types` as a peer dependency, which can create an empty `Cloudflare.Env` interface in `node_modules`. This empty interface overwrites your project's custom environment types and causes the `worker-configuration.d.ts` file generated from `wrangler types` to be ignored.
+
+#### Recommended Approach
+
+Starting with Wrangler v3, the `wrangler types` command is the recommended approach for generating TypeScript types for Cloudflare Workers. This command generates types based on your project's configuration, compatibility date, and bindings, ensuring accurate and up-to-date type definitions.
+
+To generate types for your project:
+
+```bash
+wrangler types
+```
+
+This will create a `worker-configuration.d.ts` file (or similar) with the proper type definitions for your Cloudflare Workers environment.
 
 #### Solution
 
 If `Cloudflare.Env` remains empty even after upgrading to the latest `y-durableobjects` version, follow these steps:
 
 1. **Check for remaining dependencies:**
+
    ```bash
    pnpm why @cloudflare/workers-types
    ```
 
 2. **Clean install dependencies:**
+
    ```bash
    # Delete lock files and node_modules
    rm -rf node_modules pnpm-lock.yaml
@@ -345,4 +359,7 @@ If `Cloudflare.Env` remains empty even after upgrading to the latest `y-durableo
    Run `pnpm why @cloudflare/workers-types` again. If it returns nothing, the issue is resolved.
 
 This issue was addressed in [PR #62](https://github.com/napolab/y-durableobjects/pull/62), but residual `@cloudflare/workers-types` dependencies from `wrangler` may still remain in your lock file until you perform a clean install.
+
+```
+
 ```
