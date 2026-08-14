@@ -1871,8 +1871,10 @@ Run both versions side by side and copy each room across:
 ```typescript
 app.post("/migrate/:id", async (c) => {
   const id = c.req.param("id");
-  const legacy = c.env.Y_LEGACY.getByName(id);
-  const next = c.env.Y_DURABLE_OBJECTS.getByName(id);
+  const legacy = c.env.Y_LEGACY.get(c.env.Y_LEGACY.idFromName(id));
+  const next = c.env.Y_DURABLE_OBJECTS.get(
+    c.env.Y_DURABLE_OBJECTS.idFromName(id),
+  );
 
   await next.updateYDoc(await legacy.getYDoc());
 
