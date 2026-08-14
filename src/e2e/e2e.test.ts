@@ -2,7 +2,7 @@ import { SELF, env, runInDurableObject } from "cloudflare:test";
 import { hc } from "hono/client";
 import { fromUint8Array } from "js-base64";
 
-import { createSyncMessage, createYDocMessage } from "./helper";
+import { createYDocMessage } from "./helper";
 
 import type { AppType } from ".";
 import type { InternalYDurableObject } from "../yjs/internal";
@@ -56,10 +56,9 @@ describe("endpoint request", () => {
     const id = env.Y_DURABLE_OBJECTS.idFromName(roomId);
     const stub = env.Y_DURABLE_OBJECTS.get(id);
     const message = createYDocMessage("get state");
-    const update = createSyncMessage(message);
 
     await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
-      await instance.updateYDoc(update.slice(0));
+      await instance.updateYDoc(message.slice(0));
     });
 
     const res = await SELF.fetch(`http://localhost/rooms/${roomId}/state`);
@@ -71,7 +70,6 @@ describe("endpoint request", () => {
 
   it("should update the YDoc state", async () => {
     const message = createYDocMessage("get state");
-    const update = createSyncMessage(message);
 
     const roomId = "1";
     const id = env.Y_DURABLE_OBJECTS.idFromName(roomId);
@@ -79,7 +77,7 @@ describe("endpoint request", () => {
 
     const res = await SELF.fetch(`http://localhost/rooms/${roomId}/update`, {
       method: "POST",
-      body: update.slice(0).buffer,
+      body: message.slice(0).buffer,
     });
     expect(res.status).toBe(200);
 

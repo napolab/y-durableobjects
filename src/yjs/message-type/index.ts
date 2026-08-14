@@ -3,7 +3,9 @@ import { createEncoder, writeVarUint } from "lib0/encoding";
 export const messageType = {
   sync: 0,
   awareness: 1,
-};
+  auth: 2,
+  queryAwareness: 3,
+} as const;
 
 export const isMessageType = (
   type: string,

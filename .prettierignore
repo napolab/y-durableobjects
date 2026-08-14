@@ -4,3 +4,5 @@ node_modules
 pnpm-lock.yaml
 dist
 worker-configuration.d.ts
+docs/superpowers
+.superpowers

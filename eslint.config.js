@@ -14,6 +14,11 @@ const standard = fixupConfigRules(compat.config({ extends: ["standard"] }));
 
 /** @type {import("eslint").Linter.Config[]} */
 const config = [
+  {
+    linterOptions: {
+      reportUnusedDisableDirectives: "error",
+    },
+  },
   eslint.configs.recommended,
   ...standard,
   {
@@ -77,7 +82,10 @@ const config = [
         DurableObjectStub: "readonly",
         DurableObjectTransaction: "readonly",
         DurableObjectState: "readonly",
+        DurableObjectStorage: "readonly",
+        SqlStorage: "readonly",
         WebSocketPair: "readonly",
+        WebSocketRequestResponsePair: "readonly",
         RequestInfo: "readonly",
       },
     },

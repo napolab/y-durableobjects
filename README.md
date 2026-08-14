@@ -41,7 +41,7 @@ This configuration ensures that your Cloudflare Worker can correctly instantiate
 ```toml
 name = "your-worker-name"
 main = "src/index.ts"
-compatibility_date = "2024-04-05"
+compatibility_date = "2025-04-01"
 
 account_id = "your-account-id"
 workers_dev = true
@@ -53,10 +53,124 @@ bindings = [
 ]
 
 # Durable Objects migrations
+# v2 requires the SQLite storage backend.
 [[migrations]]
 tag = "v1"
-new_classes = ["YDurableObjects"]
+new_sqlite_classes = ["YDurableObjects"]
 ```
+
+## Migrating from v1 (key-value backend)
+
+v2 requires the SQLite storage backend. A Durable Object namespace's storage
+type is immutable, so an existing v1 namespace cannot be converted in place —
+Cloudflare rejects it with `storage_type_mismatch`.
+
+Run both versions side by side and copy each room across:
+
+1. Depend on both package versions at once, using npm aliasing to install
+   the old one under a different name:
+
+   ```json
+   {
+     "dependencies": {
+       "y-durableobjects": "^2.0.0",
+       "y-durableobjects-v1": "npm:y-durableobjects@^1"
+     }
+   }
+   ```
+
+   Each installed version exports its own `YDurableObjects` class, so
+   re-export them from your Worker's entry script under distinct local
+   names — this is what lets the wrangler config below register them as two
+   separate Durable Object classes:
+
+   ```typescript
+   export { YDurableObjects as YDurableObjectsLegacy } from "y-durableobjects-v1";
+   export { YDurableObjects as YDurableObjectsSqlite } from "y-durableobjects";
+   ```
+
+2. In `wrangler.toml`, keep your existing v1 migration entry byte-for-byte —
+   migration history is append-only and a namespace's storage type is
+   immutable, so editing tag `"v1"` (renaming its class or switching it to
+   `new_sqlite_classes`) cannot convert the already-deployed key-value
+   namespace and will break it. Instead **append** a new migration with a
+   new tag that registers a distinct class name for the SQLite-backed
+   object, and add a second binding for it:
+
+   ```toml
+   [[durable_objects.bindings]]
+   name = "Y_LEGACY"
+   class_name = "YDurableObjectsLegacy"
+
+   [[durable_objects.bindings]]
+   name = "Y_DURABLE_OBJECTS"
+   class_name = "YDurableObjectsSqlite"
+
+   [[migrations]]
+   tag = "v1"
+   new_classes = ["YDurableObjectsLegacy"] # unchanged from what's already deployed
+
+   [[migrations]]
+   tag = "v2"
+   new_sqlite_classes = ["YDurableObjectsSqlite"] # appended, new tag, new class name
+   ```
+
+   The class name your v1 binding already points to in production may not
+   literally be `YDurableObjectsLegacy` — use whatever name is actually
+   recorded in your deployed `"v1"` migration entry (do not rename it), and
+   pick any unused name for the new SQLite class as long as it's different
+   from the legacy one.
+
+3. Copy each room over. `getYDoc()` returns a raw Yjs update and v2's
+   `updateYDoc()` accepts one, so a single round trip is enough:
+
+```typescript
+app.post("/migrate/:id", async (c) => {
+  const id = c.req.param("id");
+  const legacy = c.env.Y_LEGACY.get(c.env.Y_LEGACY.idFromName(id));
+  const next = c.env.Y_DURABLE_OBJECTS.get(
+    c.env.Y_DURABLE_OBJECTS.idFromName(id),
+  );
+
+  await next.updateYDoc(await legacy.getYDoc());
+
+  return c.json({ ok: true });
+});
+```
+
+4. Once every room is copied, remove the v1 binding, its export, and the
+   `y-durableobjects-v1` dependency. Leave the `"v1"` migration entry in
+   `wrangler.toml` in place — migration history is append-only, so old tags
+   must stay even after their class is no longer bound.
+
+### Document size
+
+Durable Objects give each instance 10GB of SQLite storage, but the whole
+document must fit in the instance's 128MB of memory. That memory limit — not
+storage — is the practical ceiling on document size.
+
+### Keepalive and hibernation
+
+`y-protocols`' `Awareness` class installs a repeating `setInterval` in its
+constructor to time out stale remote clients. Any pending `setInterval` or
+`setTimeout` prevents a Durable Object from hibernating at all, so previously
+every `YDurableObjects` instance stayed awake — and billed for duration — for
+its entire lifetime, regardless of any other keepalive handling. v2 now
+clears that interval immediately after constructing `Awareness`, which is
+what makes hibernation reachable in the first place. One consequence: the
+server no longer expires a client's awareness state on a timer. This is
+accepted because each connection's awareness ids are already removed on
+disconnect, and awareness lives only in memory, so it is rebuilt from nothing
+whenever an instance restarts anyway.
+
+With hibernation actually reachable, v2 also registers a `"ping"` / `"pong"`
+auto-response via `setWebSocketAutoResponse`. When a client sends `"ping"` as
+a keepalive, the Workers runtime answers with `"pong"` directly — the Durable
+Object is never woken from hibernation to run `webSocketMessage`, because the
+auto-response is matched before that handler would be invoked at all. As a
+secondary safety net, `webSocketMessage` ignores non-binary (string)
+messages, so even if a `"ping"` ever did reach a woken instance it would be a
+no-op.
 
 ## Usage
 
@@ -174,6 +288,9 @@ export { YDurableObjects };
 
 This API updates the state of the YDoc within a Durable Object.
 
+`updateYDoc` takes a raw Yjs update — the same format `getYDoc` returns and
+`Y.encodeStateAsUpdate(doc)` produces. It is not a sync-protocol message.
+
 Example usage in Hono:
 
 ```typescript
@@ -211,23 +328,39 @@ export { YDurableObjects };
 
 By supporting JS RPC, `y-durableobjects` allows for advanced operations through extensions. You can manipulate the protected fields for custom functionality:
 
+`this.doc` is a `WSSharedDoc`, and its `update(message, origin)` method expects a
+**sync-protocol-framed message** — the same bytes a WebSocket client sends over
+the wire — not a raw Yjs update. `origin` identifies the source of the change;
+it must not be a value already registered as a WebSocket listener (see
+`notify()`), so a fresh object works. Frame a raw update before passing it in:
+
 Example:
 
 ```typescript
-import { applyUpdate, encodeStateAsUpdate } from "yjs";
+import { createEncoder, toUint8Array, writeVarUint } from "lib0/encoding";
+import { writeUpdate } from "y-protocols/sync";
 import { YDurableObjects } from "y-durableobjects";
 
 export class CustomDurableObject extends YDurableObjects {
-  async customMethod() {
-    // Access and manipulate the YDoc state
-    const update = new Uint8Array([
-      /* some update data */
-    ]);
-    this.doc.update(update);
+  async customMethod(update: Uint8Array) {
+    // Wrap the raw update as a sync-protocol message (type 0 = sync) so
+    // this.doc.update() can dispatch it the same way it dispatches an
+    // incoming WebSocket message.
+    const encoder = createEncoder();
+    writeVarUint(encoder, 0 /* sync */);
+    writeUpdate(encoder, update);
+
+    this.doc.update(toUint8Array(encoder), {});
     await this.cleanup();
   }
 }
 ```
+
+If you already have a raw Yjs update and don't need protocol-level dispatch
+(sync step replies, etc.), applying it directly with `applyUpdate(this.doc, update)`
+from `yjs` — the same way the built-in `updateYDoc()` RPC method does — is
+simpler and broadcasts to connected clients just the same, since `WSSharedDoc`
+listens for its own `Doc` "update" event either way.
 
 ### Hono RPC support for ClientSide
 

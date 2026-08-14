@@ -34,7 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
    - Main Durable Object class extending Cloudflare's DurableObject
    - Manages WebSocket connections and Yjs document synchronization
-   - Handles persistence through YTransactionStorage
+   - Handles persistence through YSqliteStorage
    - Provides JS RPC methods: `getYDoc()` and `updateYDoc()`
 
 2. **WSSharedDoc** (`src/yjs/remote/ws-shared-doc.ts`)
@@ -43,11 +43,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Manages awareness protocol for collaborative features
    - Handles document updates and broadcasts
 
-3. **YTransactionStorage** (`src/yjs/storage/index.ts`)
+3. **YSqliteStorage** (`src/yjs/storage/sqlite.ts`)
 
-   - Persistence layer for Yjs updates
-   - Uses Durable Object storage with transaction support
-   - Implements incremental update storage with periodic compaction
+   - Persistence layer backed by the Durable Objects SQLite storage backend
+   - Single `updates` table; snapshots and incremental updates are not distinguished
+   - Compacts with `Y.mergeUpdates` on a row-count threshold, splitting the
+     result into chunks when it exceeds the SQLite BLOB limit
+   - `PRAGMA` is unavailable on Durable Objects SQLite; schema versioning uses a
+     `schema_version` table (`src/yjs/storage/schema.ts`)
 
 4. **Hono Integration** (`src/index.ts`)
    - Provides `yRoute()` helper for easy Hono app integration
@@ -74,10 +77,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Consistent type imports/exports required
 
 3. **Code Style**
+
    - Kebab-case for filenames
    - No console.log in production code
    - Import ordering enforced by ESLint
    - Prettier formatting required
+
+4. **SQLite Storage Backend**
+
+   - Requires `new_sqlite_classes` in wrangler migrations
+   - BLOB columns are returned as `ArrayBuffer`; convert with `new Uint8Array(value)`
+   - Consecutive synchronous `sql.exec` calls with no intervening `await` form an
+     implicit transaction — do not await inside a compaction
 
 ### Testing Approach
 
@@ -86,4 +97,6 @@ Tests follow these patterns:
 - Unit tests for individual components
 - Integration tests using Cloudflare Workers test environment
 - WebSocket connection tests with mock implementations
-- Storage tests with in-memory implementations
+- Storage tests run against the real Durable Objects SQLite backend via
+  `runInDurableObject` (`@cloudflare/vitest-pool-workers`), not an in-memory
+  fake
