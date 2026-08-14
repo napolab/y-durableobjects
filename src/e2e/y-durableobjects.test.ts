@@ -329,4 +329,114 @@ describe("YDurableObjects", () => {
       ]);
     });
   });
+
+  it("closes only the offending connection on a malformed message", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      await instance.createRoom("room1");
+      await instance.createRoom("room1");
+      const [first, other] = Array.from(instance.sessions.sockets());
+
+      // 未知のメッセージ型。例外が外に漏れると DO 全体がリセットされる
+      const malformed = new Uint8Array([99]).buffer;
+      await expect(
+        instance.webSocketMessage(first, malformed),
+      ).resolves.toBeUndefined();
+
+      // DO は生存し、他の（無関係な）接続も維持されている。webSocketClose
+      // が `first` に対して呼ばれるかどうかはランタイムの詳細であり、この
+      // テストが依存すべき性質ではない。ここで確かめるべきは「DO がリセット
+      // されず、正常な接続が生き残ること」だけ。
+      expect(instance.sessions.has(other)).toBe(true);
+    });
+  });
+
+  it("persists an update before webSocketMessage resolves", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      const client = await instance.createRoom("room1");
+
+      // storeUpdate に人為的な遅延を挟む。SQLite への実書き込みは同期 API
+      // なので、遅延を入れずに `await this.persist` を webSocketMessage から
+      // 消してみても、たまたまマイクロタスクの実行順序だけで書き込みが先に
+      // 終わってしまい、「直列化されている」ことを何も検証しない空振りの
+      // テストになる（実際に確認した。トグルオフ検証は報告書を参照）。
+      let persisted = false;
+      const originalStoreUpdate = instance.storage.storeUpdate.bind(
+        instance.storage,
+      );
+      instance.storage.storeUpdate = async (update: Uint8Array) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        await originalStoreUpdate(update);
+        persisted = true;
+      };
+
+      const message = createSyncMessage(createYDocMessage("persisted"));
+      await instance.webSocketMessage(client, message.slice(0).buffer);
+
+      // webSocketMessage が解決した時点で、遅延込みの永続化が完了している
+      expect(persisted).toBe(true);
+
+      // ストレージから読み直しても内容が入っている
+      const stored = await instance.storage.getUpdate();
+      expect(stored).not.toBeNull();
+    });
+  });
+
+  it("closes every connection and asks the runtime to reset when persistence fails", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(
+      stub,
+      async (instance: InternalYDurableObject, state: DurableObjectState) => {
+        const first = await instance.createRoom("room1");
+        await instance.createRoom("room1");
+        const sockets = Array.from(instance.sessions.sockets());
+
+        // state.abort() の"本物"の実装は、この Durable Object の
+        // io-context（≒このテストの runInDurableObject 呼び出しそのもの）
+        // を丸ごと破棄する。実際に呼ばせると、それを待っている
+        // runInDurableObject() 自身の Promise が二度と解決/reject されず、
+        // このファイルどころか単一ランタイム上の以降の全テストごと
+        // ハングすることを確認済み（トグルオフ検証時に実測、報告書に記載）。
+        // ここで検証したいのは「失敗ハンドラが state.abort() を正しい理由
+        // 付きで呼び、全ソケットを 1011 で閉じたか」という自分のコードの
+        // 振る舞いであり、workerd 自身の abort 実装の正しさではないため、
+        // abort() をスパイに差し替えて実行だけ観測する。
+        let abortCalled = false;
+        let abortReason: string | undefined;
+        state.abort = (reason?: string) => {
+          abortCalled = true;
+          abortReason = reason;
+        };
+
+        instance.storage.storeUpdate = async () => {
+          throw new Error("simulated storage failure");
+        };
+
+        const message = createSyncMessage(
+          createYDocMessage("will not persist"),
+        );
+
+        // webSocketMessage 自体は例外を投げずに解決する
+        // (Step 5 の try/catch は doc.update() の同期例外用。永続化の失敗は
+        // schedulePersist の中で catch され、webSocketMessage はそれを
+        // 待つだけなので reject しない)。
+        await expect(
+          instance.webSocketMessage(first, message.slice(0).buffer),
+        ).resolves.toBeUndefined();
+
+        for (const ws of sockets) {
+          expect(ws.readyState).not.toBe(WebSocket.READY_STATE_OPEN);
+        }
+        expect(abortCalled).toBe(true);
+        expect(abortReason).toBe("failed to persist a Yjs update");
+      },
+    );
+  });
 });

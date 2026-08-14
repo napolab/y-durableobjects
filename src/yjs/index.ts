@@ -30,6 +30,11 @@ export class YDurableObjects<T extends Env> extends DurableObject<
   protected storage: YSqliteStorage;
   protected sessions = new SessionRegistry();
 
+  /** 永続化を直列化するためのキュー。Yjs の update イベントは同期的に発火するため必要 */
+  private persist: Promise<void> = Promise.resolve();
+  /** onStart() が複数回呼ばれても doc/awareness のリスナーを二重登録しないためのガード */
+  private listenersRegistered = false;
+
   constructor(
     public state: DurableObjectState,
     public env: T["Bindings"],
@@ -51,17 +56,27 @@ export class YDurableObjects<T extends Env> extends DurableObject<
       this.registerWebSocket(ws);
     }
 
-    this.doc.on("update", async (update) => {
-      await this.storage.storeUpdate(update);
-    });
-    this.doc.awareness.on(
-      "update",
-      ({ added, updated }: AwarenessChanges, origin: unknown) => {
-        if (origin instanceof WebSocket) {
-          this.sessions.track(origin, [...added, ...updated]);
-        }
-      },
-    );
+    // 本番では onStart はコンストラクタの blockConcurrencyWhile からしか
+    // 呼ばれず、二重登録は起こらない。ただし一部のテストは冷起動の代わりに
+    // onStart() を直接呼び直して再水和ロジックを検証するため、リスナー登録
+    // だけは冪等にしておく。ここを冪等にしないと、update リスナーが二重に
+    // 登録され、以降の update ごとに schedulePersist が二重発火して永続化が
+    // 重複する。
+    if (!this.listenersRegistered) {
+      this.listenersRegistered = true;
+
+      this.doc.on("update", (update: Uint8Array) => {
+        this.schedulePersist(update);
+      });
+      this.doc.awareness.on(
+        "update",
+        ({ added, updated }: AwarenessChanges, origin: unknown) => {
+          if (origin instanceof WebSocket) {
+            this.sessions.track(origin, [...added, ...updated]);
+          }
+        },
+      );
+    }
   }
 
   protected createRoom(roomId: string) {
@@ -86,6 +101,7 @@ export class YDurableObjects<T extends Env> extends DurableObject<
 
   async updateYDoc(update: Uint8Array): Promise<void> {
     this.doc.update(update, RPC_ORIGIN);
+    await this.persist;
     await this.cleanup();
   }
   async getYDoc(): Promise<Uint8Array> {
@@ -98,7 +114,17 @@ export class YDurableObjects<T extends Env> extends DurableObject<
   ): Promise<void> {
     if (!(message instanceof ArrayBuffer)) return;
 
-    this.doc.update(new Uint8Array(message), ws);
+    try {
+      this.doc.update(new Uint8Array(message), ws);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("[y-durableobjects] invalid message", error);
+      ws.close(1003, "invalid message");
+
+      return;
+    }
+
+    await this.persist;
     await this.cleanup();
   }
 
@@ -144,5 +170,34 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     if (this.sessions.size < 1) {
       await this.storage.commit();
     }
+  }
+
+  private schedulePersist(update: Uint8Array): void {
+    this.persist = this.persist
+      .then(() => this.storage.storeUpdate(update))
+      .catch((error: unknown) => {
+        this.onPersistFailure(error);
+      });
+    this.state.waitUntil(this.persist);
+  }
+
+  /**
+   * 永続化に失敗したら全接続を閉じ、Durable Object をリセットする。
+   *
+   * 接続を閉じるだけではメモリ上の Doc がストレージより進んだまま残り、
+   * 後続の接続が「正常に見える」状態を受け取ったあと、eviction 時に
+   * 差分が無言で失われる。abort() でストレージから読み直させる。
+   *
+   * CRDT ではクライアント側が完全な状態を保持しているため、再接続時の
+   * sync step 1 / 2 で失われた更新が再送され、障害は自己修復する。
+   */
+  private onPersistFailure(error: unknown): void {
+    // eslint-disable-next-line no-console
+    console.error("[y-durableobjects] failed to persist update", error);
+
+    for (const ws of this.state.getWebSockets()) {
+      ws.close(1011, "storage failure");
+    }
+    this.state.abort("failed to persist a Yjs update");
   }
 }
