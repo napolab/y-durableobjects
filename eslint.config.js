@@ -14,6 +14,11 @@ const standard = fixupConfigRules(compat.config({ extends: ["standard"] }));
 
 /** @type {import("eslint").Linter.Config[]} */
 const config = [
+  {
+    linterOptions: {
+      reportUnusedDisableDirectives: "error",
+    },
+  },
   eslint.configs.recommended,
   ...standard,
   {

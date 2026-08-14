@@ -432,6 +432,43 @@ describe("YDurableObjects", () => {
     });
   });
 
+  it("unregisters the session immediately when the exception boundary closes a socket, without relying on webSocketClose", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      await instance.createRoom("room1");
+      const [server] = Array.from(instance.sessions.sockets());
+
+      // Give it real awareness state to remove, so the assertions below
+      // actually exercise removeAwarenessStates() rather than a no-op.
+      const awareness = new Awareness(new Doc());
+      awareness.setLocalStateField("user", { name: "a" });
+      await instance.webSocketMessage(
+        server,
+        createAwarenessMessage(awareness).slice(0).buffer,
+      );
+      expect(instance.sessions.clientIdsOf(server)).toEqual([
+        awareness.clientID,
+      ]);
+
+      // 未知のメッセージ型。例外境界がこのソケットを 1003 で閉じる。
+      const malformed = new Uint8Array([99]).buffer;
+      await instance.webSocketMessage(server, malformed);
+
+      // This DO closed the socket itself; webSocketClose is not guaranteed
+      // to fire for a close the DO initiated. Without the exception
+      // boundary's own explicit unregisterWebSocket() call, the session and
+      // this socket's awareness state would leak indefinitely (or until
+      // webSocketClose happens to fire on its own), instead of being gone
+      // by the time webSocketMessage() resolves.
+      expect(instance.sessions.has(server)).toBe(false);
+      expect(instance.doc.awareness.getStates().has(awareness.clientID)).toBe(
+        false,
+      );
+    });
+  });
+
   it("persists an update before webSocketMessage resolves", async () => {
     const id = env.Y_DURABLE_OBJECTS.newUniqueId();
     const stub = env.Y_DURABLE_OBJECTS.get(id);
@@ -586,12 +623,145 @@ describe("YDurableObjects", () => {
 
     await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
       await instance.createRoom("room1");
+      const [server] = Array.from(instance.sessions.sockets());
       await instance.updateYDoc(createYDocMessage("bye").slice(0));
 
       await instance.destroy();
 
+      // Storage is cleared.
+      expect(await instance.storage.getUpdate()).toBeNull();
+
+      // The connection is actually closed, not just left registered.
+      expect(server.readyState).not.toBe(WebSocket.READY_STATE_OPEN);
+      expect(instance.sessions.size).toBe(0);
+
+      // The in-memory Doc is discarded too, not just storage. Otherwise a
+      // client connecting to this still-live instance after destroy() would
+      // receive the old content via sync step 1/2, and subsequent deltas
+      // would reference struct parents that no longer exist anywhere.
+      expect(instance.doc.getText("root").toString()).toBe("");
+    });
+  });
+
+  it("drains the persistence queue before deleting so a slow write cannot resurrect data after destroy", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      const client = await instance.createRoom("room1");
+
+      // Delay storeUpdate so it is still in flight (queued on `this.persist`)
+      // when destroy() starts running -- the same hazard a real slow SQLite
+      // write could hit, made deterministic here.
+      const originalStoreUpdate = instance.storage.storeUpdate.bind(
+        instance.storage,
+      );
+      instance.storage.storeUpdate = async (update: Uint8Array) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        await originalStoreUpdate(update);
+      };
+
+      const message = createSyncMessage(createYDocMessage("late"));
+      // Deliberately not awaited: doc.update() runs synchronously inside
+      // this call and enqueues the delayed write onto `this.persist` before
+      // this line returns, but the write itself is still pending.
+      const pending = instance.webSocketMessage(
+        client,
+        message.slice(0).buffer,
+      );
+
+      // destroy() must await the same persist queue before deleting, or the
+      // delayed write above would land after DELETE FROM updates and
+      // resurrect an orphan row.
+      await instance.destroy();
+      await pending;
+
       expect(await instance.storage.getUpdate()).toBeNull();
     });
+  });
+
+  it("keeps registering the remaining sockets when an earlier one throws on the hibernation-wake path", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(
+      stub,
+      async (instance: InternalYDurableObject, state: DurableObjectState) => {
+        // Simulate what onStart() sees on a real hibernation wake: sockets
+        // already accepted by the runtime (state.getWebSockets()), with the
+        // in-memory SessionRegistry empty because this process never
+        // registered them. Accept two: the loop must not let the first
+        // socket's failure stop it from reaching the second.
+        const brokenPair = new WebSocketPair();
+        const brokenServer = brokenPair[1];
+        brokenServer.serializeAttachment({
+          roomId: "room1",
+          connectedAt: 0,
+          clientIds: [],
+        });
+        state.acceptWebSocket(brokenServer);
+
+        const healthyPair = new WebSocketPair();
+        const healthyServer = healthyPair[1];
+        healthyServer.serializeAttachment({
+          roomId: "room1",
+          connectedAt: 0,
+          clientIds: [],
+        });
+        state.acceptWebSocket(healthyServer);
+
+        // registerWebSocket() -> setupWSConnection() -> ws.send(). Simulate
+        // the socket workerd hands back already dead, the way it can on
+        // hibernation wake.
+        brokenServer.send = () => {
+          throw new Error("simulated dead socket on hibernation wake");
+        };
+
+        expect(instance.sessions.has(healthyServer)).toBe(false);
+
+        // onStart() is what a real cold start / hibernation wake runs.
+        await expect(instance.onStart()).resolves.toBeUndefined();
+
+        // The broken socket's registration failure must not have stopped
+        // the loop before it reached the socket after it.
+        expect(instance.sessions.has(healthyServer)).toBe(true);
+      },
+    );
+  });
+
+  it("restores session ownership from a socket's attachment when onStart() re-registers it", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(
+      stub,
+      async (instance: InternalYDurableObject, state: DurableObjectState) => {
+        // Simulate what a real hibernation wake leaves behind: a WebSocket
+        // that state.getWebSockets() already returns, carrying a
+        // SessionAttachment with clientIds recorded by a prior connection,
+        // but with the in-memory SessionRegistry never having seen it in
+        // this process (it never called sessions.add() for it before now).
+        const pair = new WebSocketPair();
+        const server = pair[1];
+        server.serializeAttachment({
+          roomId: "room1",
+          connectedAt: 0,
+          clientIds: [42],
+        });
+        state.acceptWebSocket(server);
+
+        expect(instance.sessions.has(server)).toBe(false);
+
+        // onStart() is the actual reconstruction path a cold start /
+        // hibernation wake runs -- not a stand-in for it. Real hibernation
+        // cannot be forced in this test environment, so this drives the
+        // genuine code path instead of faking eviction/restart.
+        await instance.onStart();
+
+        expect(instance.sessions.has(server)).toBe(true);
+        expect(instance.sessions.clientIdsOf(server)).toEqual([42]);
+      },
+    );
   });
 
   it("still destroys storage when one socket's close() throws", async () => {

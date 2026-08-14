@@ -37,5 +37,7 @@ export const yRoute = <E extends Env>(selector: Selector<E>) => {
 
 export { YDurableObjects, type YDurableObjectsAppType } from "./yjs";
 export type YRoute = ReturnType<typeof yRoute>;
+export type { SessionAttachment } from "./yjs";
+export { YSqliteStorage } from "./yjs/storage";
 export type { YStorage, YSqliteStorageOptions } from "./yjs/storage";
 export { type RemoteDoc, WSSharedDoc } from "./yjs/remote";

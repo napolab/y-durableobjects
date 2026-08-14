@@ -81,7 +81,22 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     }
 
     for (const ws of this.state.getWebSockets()) {
-      this.registerWebSocket(ws);
+      // ここはハイバネーションからの復帰パス。state.getWebSockets() が返す
+      // ソケットのうち 1 つがすでに死んでいる（閉じている・エラー状態）こと
+      // があり得る。registerWebSocket() は setupWSConnection() 経由で
+      // ws.send() を呼ぶため、それだけで例外を投げうる。ここでガードせずに
+      // 例外を外へ伝播させると、この for ループがそこで止まり、以降の
+      // ソケットが二度と登録されないまま静かに配信を受けなくなる。さらに
+      // 例外はコンストラクタの blockConcurrencyWhile まで伝播し、Durable
+      // Object 全体がリセットされる — 例外境界を設けた意味そのものが
+      // 失われる。1 つのソケットの復帰失敗が他のソケットの復帰を妨げては
+      // いけない。
+      try {
+        this.registerWebSocket(ws);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error(e);
+      }
     }
 
     // 本番では onStart はコンストラクタの blockConcurrencyWhile からしか
@@ -92,19 +107,27 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     // 重複する。
     if (!this.listenersRegistered) {
       this.listenersRegistered = true;
-
-      this.doc.on("update", (update: Uint8Array) => {
-        this.schedulePersist(update);
-      });
-      this.doc.awareness.on(
-        "update",
-        ({ added, updated }: AwarenessChanges, origin: unknown) => {
-          if (origin instanceof WebSocket) {
-            this.sessions.track(origin, [...added, ...updated]);
-          }
-        },
-      );
+      this.wireDocListeners();
     }
+  }
+
+  /**
+   * this.doc に対して update / awareness update のリスナーを配線する。
+   * onStart() から一度だけ呼ばれるほか、destroy() が this.doc を新しい
+   * WSSharedDoc に差し替えたときにも呼び直す。
+   */
+  private wireDocListeners(): void {
+    this.doc.on("update", (update: Uint8Array) => {
+      this.schedulePersist(update);
+    });
+    this.doc.awareness.on(
+      "update",
+      ({ added, updated }: AwarenessChanges, origin: unknown) => {
+        if (origin instanceof WebSocket) {
+          this.sessions.track(origin, [...added, ...updated]);
+        }
+      },
+    );
   }
 
   protected createRoom(roomId: string) {
@@ -155,8 +178,32 @@ export class YDurableObjects<T extends Env> extends DurableObject<
         // eslint-disable-next-line no-console
         console.error(e);
       }
+
+      // この DO が自分から閉じたソケットは webSocketClose が確実に発火する
+      // 保証がない。発火しなければ WSSharedDoc のリスナーがリークして以降
+      // 毎回の broadcast が失敗するし、このソケットの awareness state が
+      // 亡霊カーソルとしてルームに残り続け、sessions.size が 0 に落ちないため
+      // cleanup() の「全員退出でコンパクション」条件も二度と成立しなくなる。
+      // unregisterWebSocket は冪等なので、webSocketClose が別途発火しても
+      // 問題ない。
+      await this.unregisterWebSocket(ws);
     }
+
+    // destroy() の時点で永続化キューにまだ書き込みが残っていることがある。
+    // 先に drain してから DELETE しないと、キューに残っていた storeUpdate が
+    // DELETE FROM updates の後に着地し、孤児行として復活してしまう。
+    await this.persist;
     await this.storage.destroy();
+
+    // メモリ上の Doc をストレージより進んだまま残すと、まだ生きているこの
+    // インスタンスに接続してきたクライアントが sync step 1/2 で消したはずの
+    // 内容を受け取ってしまい、以降の差分は実在しない親 struct を参照する
+    // ようになる。onPersistFailure が state.abort() でインスタンスごと
+    // 破棄するのと同じ理由だが、destroy() は RPC でありインスタンスを
+    // 生かしたまま応答する必要があるため、abort() の代わりに Doc を
+    // 作り直して同じ効果を得る。
+    this.doc = new WSSharedDoc();
+    this.wireDocListeners();
   }
 
   async webSocketMessage(
@@ -171,6 +218,13 @@ export class YDurableObjects<T extends Env> extends DurableObject<
       // eslint-disable-next-line no-console
       console.error("[y-durableobjects] invalid message", error);
       ws.close(1003, "invalid message");
+
+      // この DO 自身が閉じたソケットに対して webSocketClose が確実に発火する
+      // 保証はない。発火しなければ unregisterWebSocket が一生呼ばれず、
+      // WSSharedDoc のリスナーがリークして以降の broadcast がずっと失敗し、
+      // このソケットの awareness state もルームに残り続ける。冪等なので
+      // webSocketClose が別途発火しても問題ない。
+      await this.unregisterWebSocket(ws);
 
       return;
     }

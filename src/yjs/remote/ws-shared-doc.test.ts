@@ -150,6 +150,23 @@ describe("WSSharedDoc", () => {
       expect(toReceiver.length).toBe(1);
     });
 
+    it("does not let a throwing recipient's send escape update()", () => {
+      const doc = new WSSharedDoc();
+      const requester = {};
+      doc.notify(requester, () => {
+        throw new Error("dead socket");
+      });
+
+      // A sync step 1 reply goes only to the requester via the private
+      // send() path (this.send(origin, ...)), not broadcast() -- so this
+      // exercises send()'s own guard, not broadcast()'s.
+      const encoder = createEncoder();
+      writeVarUint(encoder, messageType.sync);
+      writeSyncStep1(encoder, new Doc());
+
+      expect(() => doc.update(toUint8Array(encoder), requester)).not.toThrow();
+    });
+
     it("throws on an unknown message type", () => {
       const doc = new WSSharedDoc();
       const encoder = createEncoder();

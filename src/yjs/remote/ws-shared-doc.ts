@@ -130,7 +130,16 @@ export class WSSharedDoc extends Doc implements Notification {
   }
 
   private send(origin: object, message: Uint8Array) {
-    this.listeners.get(origin)?.(message);
+    try {
+      this.listeners.get(origin)?.(message);
+    } catch (e) {
+      // A dead socket's send() throwing here would otherwise escape
+      // update() and be misreported by callers (e.g. webSocketMessage's
+      // exception boundary) as an "invalid message", when the real cause
+      // was a disconnected recipient. Same shape as broadcast()'s guard.
+      // eslint-disable-next-line no-console
+      console.error(e);
+    }
   }
 
   private broadcast(message: Uint8Array, exclude: unknown) {

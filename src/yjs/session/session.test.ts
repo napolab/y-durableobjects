@@ -57,8 +57,16 @@ describe("SessionRegistry", () => {
     expect(registry.clientIdsOf(ws).sort()).toEqual([7, 8]);
   });
 
-  it("restores ownership from an existing attachment after hibernation", () => {
-    // hibernation 復帰を模す。registry は空だが WebSocket の attachment は残っている
+  it("reads clientIds from the attachment already present when add() is called", () => {
+    // This only exercises SessionRegistry in isolation: add() with a socket
+    // whose attachment already carries clientIds, on a registry that never
+    // called track() itself. It does NOT drive state.getWebSockets() or
+    // onStart()'s reconstruction loop, so it does not cover hibernation
+    // wake-up -- see "restores session ownership from a socket's attachment
+    // when onStart() re-registers it" in src/e2e/y-durableobjects.test.ts
+    // for that path. Real hibernation cannot be forced in this test
+    // environment, so that test drives the actual onStart() code path
+    // instead of faking eviction/restart.
     const ws = fakeSocket(attachment([42]));
     const registry = new SessionRegistry();
     registry.add(ws, () => {});

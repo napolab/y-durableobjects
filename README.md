@@ -263,23 +263,39 @@ export { YDurableObjects };
 
 By supporting JS RPC, `y-durableobjects` allows for advanced operations through extensions. You can manipulate the protected fields for custom functionality:
 
+`this.doc` is a `WSSharedDoc`, and its `update(message, origin)` method expects a
+**sync-protocol-framed message** — the same bytes a WebSocket client sends over
+the wire — not a raw Yjs update. `origin` identifies the source of the change;
+it must not be a value already registered as a WebSocket listener (see
+`notify()`), so a fresh object works. Frame a raw update before passing it in:
+
 Example:
 
 ```typescript
-import { applyUpdate, encodeStateAsUpdate } from "yjs";
+import { createEncoder, toUint8Array, writeVarUint } from "lib0/encoding";
+import { writeUpdate } from "y-protocols/sync";
 import { YDurableObjects } from "y-durableobjects";
 
 export class CustomDurableObject extends YDurableObjects {
-  async customMethod() {
-    // Access and manipulate the YDoc state
-    const update = new Uint8Array([
-      /* some update data */
-    ]);
-    this.doc.update(update);
+  async customMethod(update: Uint8Array) {
+    // Wrap the raw update as a sync-protocol message (type 0 = sync) so
+    // this.doc.update() can dispatch it the same way it dispatches an
+    // incoming WebSocket message.
+    const encoder = createEncoder();
+    writeVarUint(encoder, 0 /* sync */);
+    writeUpdate(encoder, update);
+
+    this.doc.update(toUint8Array(encoder), {});
     await this.cleanup();
   }
 }
 ```
+
+If you already have a raw Yjs update and don't need protocol-level dispatch
+(sync step replies, etc.), applying it directly with `applyUpdate(this.doc, update)`
+from `yjs` — the same way the built-in `updateYDoc()` RPC method does — is
+simpler and broadcasts to connected clients just the same, since `WSSharedDoc`
+listens for its own `Doc` "update" event either way.
 
 ### Hono RPC support for ClientSide
 

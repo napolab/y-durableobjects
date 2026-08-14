@@ -54,6 +54,14 @@ export class YSqliteStorage implements YStorage {
   readonly #maxRows: number;
   readonly #maxChunkBytes: number;
   #rowCount: number;
+  /**
+   * commit() を呼ばずに済む行数の下限。通常は #maxRows と同じだが、
+   * コンパクション結果が #maxRows を超える行数を必要とする場合は
+   * その行数（+1）まで引き上げる。そうしないと、以降の storeUpdate が
+   * 呼ばれるたびに毎回フルコンパクションを再実行してしまう
+   * （コンパクションしても #maxRows 以下にはならないため）。
+   */
+  #compactionFloor: number;
 
   constructor(sql: SqlStorage, options?: YSqliteStorageOptions) {
     this.#maxChunkBytes = options?.maxChunkBytes ?? DEFAULT_MAX_CHUNK_BYTES;
@@ -62,6 +70,7 @@ export class YSqliteStorage implements YStorage {
       throw new Error("maxChunkBytes must not exceed 2MB");
     }
     this.#maxRows = options?.maxRows ?? DEFAULT_MAX_ROWS;
+    this.#compactionFloor = this.#maxRows;
 
     this.#sql = sql;
     migrate(sql);
@@ -76,10 +85,24 @@ export class YSqliteStorage implements YStorage {
   }
 
   async storeUpdate(update: Uint8Array): Promise<void> {
-    this.#sql.exec(INSERT_UPDATE, UpdateKind.standalone, update);
-    this.#rowCount += 1;
+    // Cloudflare の SQLite は BLOB 1 行あたり 2MB までしか許さない。単一の
+    // update がその上限を超えることは実際に起こる（大きな貼り付け、埋め込み
+    // 画像、新規クライアントの sync step 2 が運ぶ大きなドキュメント全体など）。
+    // #split() で maxChunkBytes 以下の断片に割ってから複数行として書き込む。
+    // commit() と同じ分割ロジックを再利用するので、#readAll() の復元側は
+    // 変更不要（continuation はすでに連結される）。
+    const chunks = this.#split(update);
 
-    if (this.#rowCount > this.#maxRows) {
+    // ここから下では await を挟まないこと。
+    // 連続した同期書き込みが暗黙のトランザクションとして atomic に適用される。
+    for (const [index, chunk] of chunks.entries()) {
+      const kind =
+        index === 0 ? UpdateKind.standalone : UpdateKind.continuation;
+      this.#sql.exec(INSERT_UPDATE, kind, chunk);
+    }
+    this.#rowCount += chunks.length;
+
+    if (this.#rowCount > this.#compactionFloor) {
       await this.commit();
     }
   }
@@ -101,6 +124,11 @@ export class YSqliteStorage implements YStorage {
       this.#sql.exec(INSERT_UPDATE, kind, chunk);
     }
     this.#rowCount = chunks.length;
+    // このコンパクションが生んだ実際の行数が #maxRows を超えるなら、
+    // それより低いしきい値で次の storeUpdate を毎回コンパクションさせても
+    // 無駄な全件書き直しを繰り返すだけで行数は減らない。しきい値をこの
+    // 行数（+1）まで引き上げて、実際に増えたときだけ再コンパクションする。
+    this.#compactionFloor = Math.max(this.#maxRows, chunks.length + 1);
   }
 
   async destroy(): Promise<void> {

@@ -183,6 +183,79 @@ describe("YSqliteStorage", () => {
     });
   });
 
+  it("splits a single update larger than maxChunkBytes without needing commit()", async () => {
+    await withStorageAndSql(
+      async (storage, sql) => {
+        const doc = new Doc();
+        doc.getText("root").insert(0, "z".repeat(5000));
+        const update = encodeStateAsUpdate(doc);
+        expect(update.byteLength).toBeGreaterThan(200);
+
+        // storeUpdate() alone, with no commit() call, must split an
+        // oversized update into multiple rows. A bare INSERT of the whole
+        // update would eventually exceed Cloudflare's 2MB SQLite BLOB limit
+        // and throw inside storeUpdate(), wedging the room forever (every
+        // reconnect resends the same oversized update and hits the same
+        // error). This uses a small maxChunkBytes instead of an actual >2MB
+        // payload so the test stays fast, but exercises the same code path.
+        await storage.storeUpdate(update);
+
+        expect(countRows(sql)).toBeGreaterThan(1);
+
+        const restored = await storage.getUpdate();
+        expect(textOf(restored!)).toBe("z".repeat(5000));
+      },
+      { maxChunkBytes: 200, maxRows: 1000 },
+    );
+  });
+
+  it("does not recompact on every storeUpdate once maxRows is below the data's minimum chunk count", async () => {
+    await withStorageAndSql(
+      async (storage, sql) => {
+        let commitCalls = 0;
+        const originalCommit = storage.commit.bind(storage);
+        storage.commit = async () => {
+          commitCalls += 1;
+          await originalCommit();
+        };
+
+        const doc = new Doc();
+        const text = doc.getText("root");
+        const updates: Uint8Array[] = [];
+        doc.on("update", (update: Uint8Array) => updates.push(update));
+        // Each individual insert's update must stay under maxChunkBytes on
+        // its own (so a single storeUpdate() call never needs to split by
+        // itself) -- only the *cumulative* merged document, once compacted,
+        // should need more than maxRows chunks.
+        for (let i = 0; i < 30; i++) {
+          text.insert(text.length, "ab");
+        }
+
+        for (const update of updates) {
+          expect(update.byteLength).toBeLessThan(300);
+          await storage.storeUpdate(update);
+        }
+
+        // maxRows (1) is far below the number of rows the merged content
+        // actually needs at maxChunkBytes (300), so compaction can never
+        // bring the row count back under maxRows. Without flooring the
+        // threshold at (roughly) the row count the last compaction actually
+        // produced, every single storeUpdate() call after the first
+        // compaction re-triggers a full commit() (confirmed empirically:
+        // 29 of 30 calls recompact without the floor). The floor at least
+        // halves that (observed: 15 of 30) by skipping compaction until the
+        // row count has grown past what the last compaction produced, not
+        // just past the configured maxRows.
+        expect(commitCalls).toBeGreaterThan(0);
+        expect(commitCalls).toBeLessThan(updates.length * 0.7);
+
+        const restored = await storage.getUpdate();
+        expect(textOf(restored!)).toBe(text.toString());
+      },
+      { maxRows: 1, maxChunkBytes: 300 },
+    );
+  });
+
   it("throws when a continuation row has no preceding row to attach to", async () => {
     const stub = env.Y_DURABLE_OBJECTS.get(env.Y_DURABLE_OBJECTS.newUniqueId());
     await runInDurableObject(stub, async (_instance, state) => {
