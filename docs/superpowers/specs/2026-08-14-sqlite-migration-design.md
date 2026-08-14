@@ -54,7 +54,7 @@
 | awareness の所有権 | `serializeAttachment` に clientID を永続化する | hibernation を跨いで所有権が保たれる。メモリ上の Map のみでは復帰後に幽霊カーソルが残る |
 | 永続化失敗時の挙動 | 全接続を閉じ、メモリ上の状態も破棄する | CRDT ではクライアントが完全な状態を保持しており、再接続時に失われた更新が自己修復する |
 | ORM / クエリビルダ | 採用しない。SQL は `storage/queries.ts` に隔離する | クエリが 3 本ですべて静的。Drizzle は API が非同期のため暗黙トランザクションの atomicity を壊すリスクがある |
-| スキーマ版管理 | `PRAGMA user_version` ベースの自前マイグレーションランナー | 完全に同期実行でき、依存ゼロで 10 行程度に収まる |
+| スキーマ版管理 | `schema_version` テーブルベースの自前マイグレーションランナー | 完全に同期実行でき、依存ゼロで済む。`PRAGMA` は Durable Objects の SQLite では拒否される（下記の検証結果を参照） |
 
 ### ORM を採用しない判断の詳細
 
@@ -120,6 +120,8 @@ export interface YStorage {
 
 `SELECT kind, data FROM updates ORDER BY seq` を走査し、`kind = 1` の行は直前のバッファに連結、`kind = 0` で新しい update を開始する。最後に `Y.mergeUpdates([...])` で 1 本にまとめて返す。**Doc を一切構築しない。**
 
+BLOB カラムは `ArrayBuffer` として返るため、各行で `new Uint8Array(row.data)` への変換が必要である。
+
 ### 書き込み
 
 `INSERT INTO updates (kind, data) VALUES (0, ?)` の 1 文のみ。行数はメモリ上のカウンタで保持し、起動時に `SELECT COUNT(*)` で 1 回だけ復元する。v1 の `bytes` / `count` キーへの 2 回の追加 `put` が不要になり、1 更新あたりの書き込みが 3 回から 1 回に減る。
@@ -154,6 +156,8 @@ SQLite の BLOB / 行の上限は 2MB のため、チャンクサイズは安全
 
 ### スキーマ版管理
 
+版番号は `schema_version` テーブルに保持する。`PRAGMA` は使えない（後述の検証結果を参照）。
+
 ```ts
 // src/yjs/storage/schema.ts
 const MIGRATIONS: readonly string[] = [
@@ -165,13 +169,35 @@ const MIGRATIONS: readonly string[] = [
 ];
 
 export const migrate = (sql: SqlStorage): void => {
-  const version = sql.exec<{ user_version: number }>("PRAGMA user_version").one().user_version;
-  for (let i = version; i < MIGRATIONS.length; i++) sql.exec(MIGRATIONS[i]);
-  sql.exec(`PRAGMA user_version = ${MIGRATIONS.length}`);
+  sql.exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)");
+  const row = sql.exec<{ version: number }>("SELECT version FROM schema_version").toArray().at(0);
+  const current = row?.version ?? 0;
+  for (let i = current; i < MIGRATIONS.length; i++) sql.exec(MIGRATIONS[i]);
+  if (row === undefined) {
+    sql.exec("INSERT INTO schema_version (version) VALUES (?)", MIGRATIONS.length);
+  } else {
+    sql.exec("UPDATE schema_version SET version = ?", MIGRATIONS.length);
+  }
 };
 ```
 
 すべて同期実行のため `blockConcurrencyWhile` の中で atomic に完了する。将来スキーマを変更する場合は `MIGRATIONS` 配列に `ALTER TABLE` を追記するだけでよい。Durable Object の SQLite はインスタンスごとに独立した DB であるため、各インスタンスがそれぞれ初回起動時に自分のペースでマイグレートする。
+
+### 実機で検証済みの挙動
+
+設計の前提となる以下の項目を、本リポジトリの `@cloudflare/vitest-pool-workers` 環境（`new_sqlite_classes` に切り替えた状態）で実測した。
+
+| 項目 | 結果 |
+| --- | --- |
+| `PRAGMA user_version` の読み書き | **不可**。`Error: not authorized: SQLITE_AUTH` で throw する |
+| `CREATE TABLE ... INTEGER PRIMARY KEY AUTOINCREMENT` | 可 |
+| `sql.exec` への `Uint8Array` バインド | 可 |
+| `sql.exec` への `ArrayBuffer` バインド | 可 |
+| BLOB カラムの戻り値の型 | **`ArrayBuffer`**。`Uint8Array` ではないため読み出し時に変換が必要 |
+| `sqlite_master` の SELECT | 可 |
+| 既存テスト 41 件を SQLite バックエンドで実行 | 全件 pass。KV API が `__cf_kv` 経由で透過的に動作するため、バックエンド切り替え単体ではコード変更を要しない |
+
+BLOB が `ArrayBuffer` で返る点は重要である。読み出し時は `new Uint8Array(row.data)` による変換が必須となる。逆に書き込み時は、lib0 のエンコーダが返す `Uint8Array` が大きなバッファへのビューであることが多いため、`u8.buffer` をそのまま渡してはならない。`Uint8Array` を直接バインドできることが確認できたので、変換せずそのまま渡す方針とする。
 
 ## 6. Durable Object 本体
 
@@ -367,7 +393,7 @@ v1 の `getYDoc()` は元から生の update を返しており、v2 の `update
 | 8 | 不正なバイナリでその接続のみ閉じ、DO と他接続は生存する | H-4 |
 | 9 | 1000 件の更新が `seq` 順に復元される | H-5 |
 | 10 | `deserializeAttachment` から awareness の所有権が復元される | 6-2 |
-| 11 | `user_version` マイグレーションが冪等である | 5 |
+| 11 | `schema_version` マイグレーションが冪等である（2 回実行しても壊れない） | 5 |
 
 ### テスト上の制約
 
