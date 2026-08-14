@@ -311,7 +311,9 @@ async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
 this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
 ```
 
-文字列メッセージは `webSocketMessage` の先頭で無視されているため、既存の挙動と衝突しない。README に「クライアントが `"ping"` を定期送信すれば Durable Object を起こさずに keepalive できる」ことを明記する。duration 課金への影響が最も大きい項目である。
+文字列メッセージは `webSocketMessage` の先頭で無視されているため、既存の挙動と衝突しない。README に「クライアントが `"ping"` を定期送信すれば Durable Object を起こさずに keepalive できる」ことを明記する。
+
+> **訂正（実装後判明）**: 上記の「duration 課金への影響が最も大きい項目」という記述は誤りだった。`WSSharedDoc` が構築する y-protocols の `Awareness` はコンストラクタで repeating `setInterval`（既定 3 秒間隔）を張っており、これが生きている限り Durable Object は ping/pong 対応の有無に関わらずそもそもハイバネートしない。実際に duration 課金へ最も効くのはこの interval を `Awareness` 構築直後に `clearInterval` することであり、ping/pong 自動応答はハイバネーションに到達できるようになって初めて意味を持つ副次的な最適化である。詳細は `src/yjs/remote/ws-shared-doc.ts` の `clearAwarenessCheckInterval()` とその呼び出し箇所のコメントを参照。
 
 `acceptWebSocket()` のタグは付けない。clientID は接続確立時点では未確定であり、タグは `acceptWebSocket` 呼び出し時に確定している必要があるため相性が悪い。
 

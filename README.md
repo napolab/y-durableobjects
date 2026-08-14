@@ -151,15 +151,26 @@ storage — is the practical ceiling on document size.
 
 ### Keepalive and hibernation
 
-v2 registers a `"ping"` / `"pong"` auto-response via
-`setWebSocketAutoResponse`. When a client sends `"ping"` as a keepalive, the
-Workers runtime answers with `"pong"` directly — the Durable Object is never
-woken from hibernation to run `webSocketMessage`, because the auto-response
-is matched before that handler would be invoked at all. This interception is
-the entire point of the hibernation optimization, and it's the single biggest
-lever on duration billing. As a secondary safety net, `webSocketMessage`
-ignores non-binary (string) messages, so even if a `"ping"` ever did reach a
-woken instance it would be a no-op.
+`y-protocols`' `Awareness` class installs a repeating `setInterval` in its
+constructor to time out stale remote clients. Any pending `setInterval` or
+`setTimeout` prevents a Durable Object from hibernating at all, so previously
+every `YDurableObjects` instance stayed awake — and billed for duration — for
+its entire lifetime, regardless of any other keepalive handling. v2 now
+clears that interval immediately after constructing `Awareness`, which is
+what makes hibernation reachable in the first place. One consequence: the
+server no longer expires a client's awareness state on a timer. This is
+accepted because each connection's awareness ids are already removed on
+disconnect, and awareness lives only in memory, so it is rebuilt from nothing
+whenever an instance restarts anyway.
+
+With hibernation actually reachable, v2 also registers a `"ping"` / `"pong"`
+auto-response via `setWebSocketAutoResponse`. When a client sends `"ping"` as
+a keepalive, the Workers runtime answers with `"pong"` directly — the Durable
+Object is never woken from hibernation to run `webSocketMessage`, because the
+auto-response is matched before that handler would be invoked at all. As a
+secondary safety net, `webSocketMessage` ignores non-binary (string)
+messages, so even if a `"ping"` ever did reach a woken instance it would be a
+no-op.
 
 ## Usage
 

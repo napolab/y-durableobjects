@@ -25,6 +25,62 @@ interface Notification extends RemoteDoc {
   notify(origin: object, listener: Listener): Unsubscribe;
 }
 
+/**
+ * Narrows `_checkInterval` to the numeric interval-id shape that
+ * `setInterval` / `clearInterval` use in the Workers runtime (see
+ * `worker-configuration.d.ts`). y-protocols' own `.d.ts` types the field as
+ * `any`; funneling it through `unknown` here means we never trust that
+ * `any` directly -- we check its actual runtime shape before touching it.
+ */
+function isIntervalHandle(value: unknown): value is number {
+  return typeof value === "number";
+}
+
+/**
+ * y-protocols' `Awareness` constructor installs a repeating `setInterval`
+ * that fires every `floor(outdatedTimeout / 10)` ms (3s with the library
+ * default) -- see the installed y-protocols package's `awareness.js`
+ * (`node_modules/y-protocols/awareness.js`).
+ * Any pending `setInterval`/`setTimeout` prevents a Durable Object from
+ * hibernating, so leaving this running keeps every `YDurableObjects`
+ * instance awake -- and billed for duration -- for its entire lifetime.
+ *
+ * The timer does two things: (1) renew the local client's own clock, gated
+ * on `getLocalState() !== null`. `WSSharedDoc`'s constructor immediately
+ * calls `awareness.setLocalState(null)`, so that branch never fires here.
+ * (2) evict remote clients whose state hasn't been refreshed within
+ * `outdatedTimeout` (30s). Only (2) does anything on the server, and we
+ * accept losing it: each connection's awareness ids are torn down on
+ * disconnect (`unregisterWebSocket`), the Durable Objects runtime delivers
+ * `webSocketClose`/`webSocketError` for abnormal disconnects too, and
+ * awareness only ever lives in memory, so it's rebuilt from nothing on
+ * every restart regardless. The GC's remaining value is small; the
+ * hibernation cost of keeping the timer alive is not.
+ *
+ * `_checkInterval` is underscore-prefixed and not part of y-protocols'
+ * public API -- a future release could rename or drop it. If that happens
+ * this must fail loudly instead of silently leaving the interval running:
+ * a silent regression here goes back to costing real money, continuously
+ * and invisibly, on every running instance.
+ */
+function clearAwarenessCheckInterval(awareness: Awareness): void {
+  const handle: unknown = awareness._checkInterval;
+
+  if (!isIntervalHandle(handle)) {
+    throw new Error(
+      "y-protocols Awareness no longer exposes its repeating check timer " +
+        `as a numeric \`_checkInterval\` handle (got ${typeof handle}). ` +
+        "Without clearing it, that interval keeps every YDurableObjects " +
+        "instance from ever hibernating, which is billed as continuous " +
+        "Durable Object duration. Update clearAwarenessCheckInterval() in " +
+        "ws-shared-doc.ts for the new y-protocols internals before " +
+        "releasing this.",
+    );
+  }
+
+  clearInterval(handle);
+}
+
 export class WSSharedDoc extends Doc implements Notification {
   /** origin（通常は WebSocket）をキーにした配信先 */
   private listeners = new Map<object, Listener>();
@@ -32,6 +88,11 @@ export class WSSharedDoc extends Doc implements Notification {
 
   constructor(gc = true) {
     super({ gc });
+
+    // Awareness のコンストラクタが張る repeating setInterval を即座に破棄する。
+    // これが生き続ける限り Durable Object は絶対にハイバネートしない。
+    // 詳細は clearAwarenessCheckInterval() のコメントを参照。
+    clearAwarenessCheckInterval(this.awareness);
     this.awareness.setLocalState(null);
 
     // カーソルなどの付加情報の更新通知

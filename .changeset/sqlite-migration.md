@@ -39,3 +39,9 @@ key-value backend had forced.
 - `destroy()` deletes a room's data and closes its connections.
 - A `"ping"` / `"pong"` auto-response keeps keepalives from waking the Durable
   Object from hibernation.
+- The repeating `setInterval` that `y-protocols`' `Awareness` installs in its
+  constructor is now cleared immediately. That interval previously kept
+  every Durable Object instance awake for its entire lifetime, so this is
+  what actually makes hibernation reachable. As a side effect, the server no
+  longer expires a stale awareness entry on a timer; each connection's
+  awareness state is still removed on disconnect.

@@ -1,6 +1,16 @@
 import { createDecoder, readVarUint } from "lib0/decoding";
-import { createEncoder, toUint8Array, writeVarUint } from "lib0/encoding";
+import {
+  createEncoder,
+  toUint8Array,
+  writeVarUint,
+  writeVarUint8Array,
+} from "lib0/encoding";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import {
+  Awareness,
+  encodeAwarenessUpdate,
+  removeAwarenessStates,
+} from "y-protocols/awareness";
 import { readSyncMessage, writeSyncStep1, writeUpdate } from "y-protocols/sync";
 import { Doc, encodeStateAsUpdate } from "yjs";
 
@@ -23,6 +33,18 @@ const createSyncMessage = (update: Uint8Array) => {
   const encoder = createEncoder();
   writeVarUint(encoder, messageType.sync);
   writeUpdate(encoder, update);
+
+  return toUint8Array(encoder);
+};
+
+// Encodes a real awareness protocol message, the way an actual client would.
+const createAwarenessMessage = (awareness: Awareness) => {
+  const encoder = createEncoder();
+  writeVarUint(encoder, messageType.awareness);
+  writeVarUint8Array(
+    encoder,
+    encodeAwarenessUpdate(awareness, [awareness.clientID]),
+  );
 
   return toUint8Array(encoder);
 };
@@ -173,6 +195,92 @@ describe("WSSharedDoc", () => {
       writeVarUint(encoder, 99);
 
       expect(() => doc.update(toUint8Array(encoder), {})).toThrow();
+    });
+  });
+
+  describe("Awareness hibernation guard", () => {
+    // Cloudflare Durable Objects cannot hibernate while any
+    // setInterval/setTimeout is pending. y-protocols' Awareness installs a
+    // repeating setInterval in its own constructor, so WSSharedDoc must
+    // clear it immediately or the Durable Object stays awake -- and billed
+    // -- for its entire lifetime. These tests verify that mechanism (the
+    // timer handle gets torn down, and the guard actually fires if
+    // y-protocols' internals change out from under it). Real hibernation
+    // itself can't be exercised under @cloudflare/vitest-pool-workers --
+    // there is no API to force a Durable Object to hibernate and observe
+    // that it went dormant -- so the outcome (fewer billed milliseconds)
+    // is not, and cannot be, asserted here.
+    it("clears y-protocols' repeating awareness check interval right after construction", () => {
+      const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+
+      const localDoc = new WSSharedDoc();
+      const handle: unknown = localDoc.awareness._checkInterval;
+
+      // y-protocols/awareness.js sets `_checkInterval` to whatever
+      // `setInterval` returns; in this runtime that's a number (see
+      // worker-configuration.d.ts). If it were anything else, WSSharedDoc's
+      // own guard would already have thrown during construction above.
+      expect(typeof handle).toBe("number");
+      expect(clearIntervalSpy).toHaveBeenCalledWith(handle);
+    });
+
+    it("throws loudly if y-protocols' Awareness stops exposing a numeric _checkInterval handle", () => {
+      // Simulates a future y-protocols release changing what `_checkInterval`
+      // holds (e.g. renaming/removing it, or moving to a non-numeric handle
+      // in some other runtime). WSSharedDoc must fail construction instead
+      // of silently leaving the real interval running.
+      vi.spyOn(globalThis, "setInterval").mockReturnValue(
+        undefined as unknown as ReturnType<typeof setInterval>,
+      );
+
+      expect(() => new WSSharedDoc()).toThrow(/_checkInterval/);
+    });
+  });
+
+  describe("Awareness protocol", () => {
+    it("applies a remote awareness update and broadcasts it to other listeners", () => {
+      const remoteAwareness = new Awareness(new Doc());
+      remoteAwareness.setLocalStateField("user", { name: "a" });
+
+      const anotherOrigin = {};
+      const anotherListener = vi.fn();
+      doc.notify(anotherOrigin, anotherListener);
+
+      // Sent with `origin` (already registered via notify() in beforeEach)
+      // as the sender, matching how WSSharedDoc#update() is driven from a
+      // real WebSocket message.
+      doc.update(createAwarenessMessage(remoteAwareness), origin);
+
+      expect(doc.awareness.getStates().get(remoteAwareness.clientID)).toEqual({
+        user: { name: "a" },
+      });
+      expect(anotherListener).toHaveBeenCalledTimes(1);
+      // The sender itself doesn't get its own update echoed back, same as
+      // sync updates.
+      expect(mockListener).not.toHaveBeenCalled();
+
+      remoteAwareness.destroy();
+    });
+
+    it("removes an awareness state and broadcasts the removal, the same way disconnect cleanup does", () => {
+      const remoteAwareness = new Awareness(new Doc());
+      remoteAwareness.setLocalStateField("user", { name: "a" });
+      doc.update(createAwarenessMessage(remoteAwareness), {});
+      expect(doc.awareness.getStates().has(remoteAwareness.clientID)).toBe(
+        true,
+      );
+
+      mockListener.mockClear();
+      // This is exactly what YDurableObjects#unregisterWebSocket calls when
+      // a connection closes (see src/yjs/index.ts).
+      removeAwarenessStates(doc.awareness, [remoteAwareness.clientID], null);
+
+      expect(doc.awareness.getStates().has(remoteAwareness.clientID)).toBe(
+        false,
+      );
+      expect(mockListener).toHaveBeenCalledTimes(1);
+
+      remoteAwareness.destroy();
     });
   });
 });
