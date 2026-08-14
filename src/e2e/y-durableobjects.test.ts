@@ -1,13 +1,15 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { hc } from "hono/client";
+import { createDecoder, readVarUint } from "lib0/decoding";
 import {
   createEncoder,
   toUint8Array,
   writeVarUint,
   writeVarUint8Array,
 } from "lib0/encoding";
-import { expect, describe, it } from "vitest";
+import { expect, describe, it, vi } from "vitest";
 import { Awareness, encodeAwarenessUpdate } from "y-protocols/awareness";
+import { readSyncMessage } from "y-protocols/sync";
 import { Doc, applyUpdate, encodeStateAsUpdate } from "yjs";
 
 import { YDurableObjects } from "../yjs";
@@ -152,6 +154,55 @@ describe("YDurableObjects", () => {
     const doc = new Doc();
     applyUpdate(doc, copied);
     expect(doc.getText("root").toString()).toBe("Hello World!");
+  });
+
+  it("broadcasts an updateYDoc change to connected WebSocket clients", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      await instance.createRoom("room1");
+      const [server] = Array.from(instance.sessions.sockets());
+
+      // registerWebSocket() already sent an initial sync/awareness pair
+      // synchronously when the room was created above; only care about
+      // what gets sent in response to updateYDoc, so install the spy
+      // after that initial handshake has already happened.
+      const sent = vi.fn();
+      server.send = sent;
+
+      const message = createYDocMessage("via rpc");
+      await instance.updateYDoc(message.slice(0));
+
+      // applyUpdate(this.doc, update, RPC_ORIGIN) must fire WSSharedDoc's
+      // "update" handler, which calls broadcast(msg, RPC_ORIGIN) — and
+      // broadcast only excludes an origin that is itself a registered
+      // listener key. RPC_ORIGIN is never registered (only WebSockets are,
+      // via notify()), so every connected socket, including this one,
+      // must receive the broadcast.
+      expect(sent).toHaveBeenCalled();
+
+      const syncMessage = sent.mock.calls
+        .map((call: unknown[]) => call[0])
+        .find((raw): raw is Uint8Array => {
+          if (!(raw instanceof Uint8Array)) return false;
+          const decoder = createDecoder(raw);
+
+          return readVarUint(decoder) === messageType.sync;
+        });
+      expect(syncMessage).toBeDefined();
+
+      // Decode past the outer messageType.sync wrapper and apply the inner
+      // sync-protocol payload to a fresh Doc exactly as a real client would
+      // on receipt. This proves the *content* of the RPC update actually
+      // reached the socket, not merely that some send() happened to fire.
+      const decoder = createDecoder(syncMessage as Uint8Array);
+      readVarUint(decoder); // messageType.sync, already checked above
+      const received = new Doc();
+      readSyncMessage(decoder, createEncoder(), received, null);
+
+      expect(received.getText("root").toString()).toBe("via rpc");
+    });
   });
 
   it("handles WebSocket messages correctly", async () => {
