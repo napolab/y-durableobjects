@@ -6,7 +6,7 @@ import { WSSharedDoc } from "../yjs/remote";
 
 import { setupWSConnection } from "./client/setup";
 import { createApp } from "./hono";
-import { YTransactionStorageImpl } from "./storage";
+import { YSqliteStorage } from "./storage";
 
 import type { AwarenessChanges } from "../yjs/remote";
 import type { Env } from "hono";
@@ -25,14 +25,7 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     createRoom: this.createRoom.bind(this),
   });
   protected doc = new WSSharedDoc();
-  protected storage = new YTransactionStorageImpl({
-    get: (key) => this.state.storage.get(key),
-    list: (options) => this.state.storage.list(options),
-    put: (key, value) => this.state.storage.put(key, value),
-    delete: async (key) =>
-      this.state.storage.delete(Array.isArray(key) ? key : [key]),
-    transaction: (closure) => this.state.storage.transaction(closure),
-  });
+  protected storage: YSqliteStorage;
   protected sessions = new Map<WebSocket, () => void>();
   private awarenessClients = new Set<number>();
 
@@ -42,12 +35,16 @@ export class YDurableObjects<T extends Env> extends DurableObject<
   ) {
     super(state, env);
 
+    this.storage = new YSqliteStorage(state.storage.sql);
+
     void this.state.blockConcurrencyWhile(this.onStart.bind(this));
   }
 
   protected async onStart(): Promise<void> {
-    const doc = await this.storage.getYDoc();
-    applyUpdate(this.doc, encodeStateAsUpdate(doc));
+    const update = await this.storage.getUpdate();
+    if (update !== null) {
+      applyUpdate(this.doc, update);
+    }
 
     for (const ws of this.state.getWebSockets()) {
       this.registerWebSocket(ws);

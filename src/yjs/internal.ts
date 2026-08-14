@@ -1,10 +1,10 @@
 import type { WSSharedDoc } from "./remote";
-import type { YTransactionStorageImpl } from "./storage";
+import type { YSqliteStorage } from "./storage";
 
 export interface InternalYDurableObject {
   // private state
   doc: WSSharedDoc;
-  storage: YTransactionStorageImpl;
+  storage: YSqliteStorage;
   sessions: Map<WebSocket, () => void>;
   awarenessClients: Set<number>;
 
