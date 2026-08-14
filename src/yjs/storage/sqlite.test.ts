@@ -48,13 +48,17 @@ describe("YSqliteStorage", () => {
     });
   });
 
-  it("applies stored updates in insertion order", async () => {
+  it("round-trips a large number of individually stored updates", async () => {
     await withStorage(async (storage) => {
       const doc = new Doc();
       const text = doc.getText("root");
 
-      // 1000 件の更新を個別に保存する。キーの辞書順ではなく seq 順で
-      // 復元されることを検証する（H-5 の回帰テスト）。
+      // 1000 件の更新を個別に保存し、まとめて復元しても元のドキュメントと
+      // 一致することを検証する（大量行のバルクラウンドトリップ）。
+      // 注意: Y.mergeUpdates は因果的に依存する struct を並べ替えて解決する
+      // ため、この結果だけでは seq 順に復元されていることは証明されない。
+      // ORDER BY seq を外しても本テストは通ってしまう。順序に依存する
+      // 検証（バイト断片の再構成）は Task 3 で追加する。
       const updates: Uint8Array[] = [];
       doc.on("update", (update: Uint8Array) => updates.push(update));
       for (let i = 0; i < 1000; i++) {
@@ -76,6 +80,24 @@ describe("YSqliteStorage", () => {
       await storage.destroy();
 
       expect(await storage.getUpdate()).toBeNull();
+    });
+  });
+
+  it("throws when a continuation row has no preceding row to attach to", async () => {
+    const stub = env.Y_DURABLE_OBJECTS.get(env.Y_DURABLE_OBJECTS.newUniqueId());
+    await runInDurableObject(stub, async (_instance, state) => {
+      const storage = new YSqliteStorage(state.storage.sql);
+
+      // 破損した状態を直接作る: 先行する standalone 行なしに continuation
+      // (kind = 1) 行だけを挿入する。
+      state.storage.sql.exec(
+        "INSERT INTO updates (kind, data) VALUES (1, ?)",
+        new Uint8Array([1, 2, 3]),
+      );
+
+      await expect(storage.getUpdate()).rejects.toThrow(
+        /orphaned continuation row at seq=\d+/,
+      );
     });
   });
 });

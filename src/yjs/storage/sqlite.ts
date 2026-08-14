@@ -12,6 +12,7 @@ import { UpdateKind } from "./type";
 import type { YStorage } from "./type";
 
 type UpdateRow = {
+  seq: number;
   kind: number;
   data: ArrayBuffer;
 };
@@ -101,7 +102,20 @@ export class YSqliteStorage implements YStorage {
     let pending: Uint8Array[] = [];
     for (const row of rows) {
       const bytes = new Uint8Array(row.data);
-      if (row.kind === UpdateKind.continuation && pending.length > 0) {
+      if (row.kind === UpdateKind.continuation) {
+        if (pending.length === 0) {
+          // A continuation row with nothing preceding it to attach to means
+          // the updates table itself is corrupt (truncated compaction,
+          // manual tampering, a bug elsewhere). Silently reinterpreting the
+          // fragment as a standalone update would hand raw fragment bytes
+          // to Y.mergeUpdates and either corrupt the document without any
+          // signal or fail later with a confusing decode error far from the
+          // real cause. A storage library must surface its own corruption
+          // loudly instead of guessing, so we fail here and name the row.
+          throw new Error(
+            `YSqliteStorage: orphaned continuation row at seq=${row.seq} has no preceding row to attach to`,
+          );
+        }
         pending.push(bytes);
         continue;
       }
