@@ -35,6 +35,21 @@ const DEFAULT_MAX_ROWS = 2000;
 const DEFAULT_MAX_CHUNK_BYTES = 1024 * 1024;
 const SQLITE_BLOB_LIMIT = 2 * 1024 * 1024;
 
+/**
+ * maxChunkBytes / maxRows は両方とも「この行数・バイト数に到達したら
+ * 前進する」しきい値として使われる。0 や負の値を渡すと #split() のオフ
+ * セットが一度も進まず無限ループになる（maxChunkBytes）か、あるいは
+ * 実際に減らせないしきい値で毎回フルコンパクションを引き起こし続ける
+ * だけになる（maxRows）。どちらも呼び出し側の設定ミスとして早期に
+ * throw し、Worker がタイムアウトやメモリ枯渇に至る前に検出できる
+ * ようにする。
+ */
+const assertPositiveInteger = (value: number, name: string): void => {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+};
+
 const concat = (parts: readonly Uint8Array[]): Uint8Array => {
   if (parts.length === 1) return parts[0];
 
@@ -65,16 +80,27 @@ export class YSqliteStorage implements YStorage {
 
   constructor(sql: SqlStorage, options?: YSqliteStorageOptions) {
     this.#maxChunkBytes = options?.maxChunkBytes ?? DEFAULT_MAX_CHUNK_BYTES;
+    assertPositiveInteger(this.#maxChunkBytes, "maxChunkBytes");
     if (this.#maxChunkBytes > SQLITE_BLOB_LIMIT) {
       // https://developers.cloudflare.com/durable-objects/platform/limits/
       throw new Error("maxChunkBytes must not exceed 2MB");
     }
     this.#maxRows = options?.maxRows ?? DEFAULT_MAX_ROWS;
-    this.#compactionFloor = this.#maxRows;
+    assertPositiveInteger(this.#maxRows, "maxRows");
 
     this.#sql = sql;
     migrate(sql);
     this.#rowCount = sql.exec<{ count: number }>(COUNT_UPDATES).one().count;
+    // コンストラクタは Durable Object が起きるたびに（hibernation からの
+    // 復帰も含めて）実行される。#compactionFloor を無条件に #maxRows へ
+    // リセットすると、すでに #maxRows を超える行数を抱えたドキュメントを
+    // 読み込んだ直後の最初の storeUpdate() が必ずコンパクションの条件を
+    // 満たしてしまい、フルマージ・削除・再挿入を毎回の起床のたびに
+    // 引き起こす — フロアが本来防ぐはずのスラッシングそのものが
+    // 再現してしまう。commit() が算出する "+1" の余白（直後の 1 回の
+    // storeUpdate では再トリガーしない）と同じ考え方で、実際に読み込んだ
+    // 行数から初期化する。
+    this.#compactionFloor = Math.max(this.#maxRows, this.#rowCount + 1);
   }
 
   async getUpdate(): Promise<Uint8Array | null> {

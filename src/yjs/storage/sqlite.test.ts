@@ -256,6 +256,84 @@ describe("YSqliteStorage", () => {
     );
   });
 
+  it("rejects a non-positive maxChunkBytes", async () => {
+    const stub = env.Y_DURABLE_OBJECTS.get(env.Y_DURABLE_OBJECTS.newUniqueId());
+    await runInDurableObject(stub, async (_instance, state) => {
+      // maxChunkBytes <= 0 makes #split()'s offset never advance, looping
+      // forever on any non-empty update. This must be rejected eagerly at
+      // construction time instead of hanging the first storeUpdate() call.
+      expect(
+        () => new YSqliteStorage(state.storage.sql, { maxChunkBytes: 0 }),
+      ).toThrow(/maxChunkBytes/);
+      expect(
+        () => new YSqliteStorage(state.storage.sql, { maxChunkBytes: -1 }),
+      ).toThrow(/maxChunkBytes/);
+      expect(
+        () => new YSqliteStorage(state.storage.sql, { maxChunkBytes: 1.5 }),
+      ).toThrow(/maxChunkBytes/);
+    });
+  });
+
+  it("rejects a non-positive maxRows", async () => {
+    const stub = env.Y_DURABLE_OBJECTS.get(env.Y_DURABLE_OBJECTS.newUniqueId());
+    await runInDurableObject(stub, async (_instance, state) => {
+      expect(
+        () => new YSqliteStorage(state.storage.sql, { maxRows: 0 }),
+      ).toThrow(/maxRows/);
+      expect(
+        () => new YSqliteStorage(state.storage.sql, { maxRows: -5 }),
+      ).toThrow(/maxRows/);
+      expect(
+        () => new YSqliteStorage(state.storage.sql, { maxRows: 2.5 }),
+      ).toThrow(/maxRows/);
+    });
+  });
+
+  it("does not immediately recompact a rehydrated document whose row count already exceeds maxRows", async () => {
+    const stub = env.Y_DURABLE_OBJECTS.get(env.Y_DURABLE_OBJECTS.newUniqueId());
+    await runInDurableObject(stub, async (_instance, state) => {
+      const sql = state.storage.sql;
+
+      // Build up a document whose compacted row count (5) exceeds the
+      // maxRows we'll later reopen it with (1), the same way a real
+      // compaction under a small maxRows would.
+      const first = new YSqliteStorage(sql, { maxRows: 1, maxChunkBytes: 50 });
+      const doc = new Doc();
+      const text = doc.getText("root");
+      text.insert(0, "x".repeat(400));
+      await first.storeUpdate(encodeStateAsUpdate(doc));
+      await first.commit();
+
+      const rowsAfterCompaction = countRows(sql);
+      expect(rowsAfterCompaction).toBeGreaterThan(1);
+
+      // Simulate a Durable Object waking up: construct a fresh storage
+      // instance over the same (already-populated) sql handle, still
+      // configured with maxRows = 1 -- far below the row count just loaded.
+      let commitCalls = 0;
+      const second = new YSqliteStorage(sql, { maxRows: 1, maxChunkBytes: 50 });
+      const originalCommit = second.commit.bind(second);
+      second.commit = async () => {
+        commitCalls += 1;
+        await originalCommit();
+      };
+
+      // A single small follow-up update must not trigger a full
+      // merge/delete/reinsert -- the compaction floor must have been
+      // initialised from the row count actually loaded, not reset to
+      // maxRows.
+      const updates: Uint8Array[] = [];
+      doc.on("update", (update: Uint8Array) => updates.push(update));
+      text.insert(text.length, "y");
+      await second.storeUpdate(updates[0]);
+
+      expect(commitCalls).toBe(0);
+
+      const restored = await second.getUpdate();
+      expect(textOf(restored!)).toBe(text.toString());
+    });
+  });
+
   it("throws when a continuation row has no preceding row to attach to", async () => {
     const stub = env.Y_DURABLE_OBJECTS.get(env.Y_DURABLE_OBJECTS.newUniqueId());
     await runInDurableObject(stub, async (_instance, state) => {

@@ -81,4 +81,43 @@ describe("SessionRegistry", () => {
 
     expect(registry.clientIdsOf(ws)).toEqual([]);
   });
+
+  it("makes ownership of a reused client id exclusive between sockets", () => {
+    // Simulates an overlapping reconnect: the same awareness clientID (the
+    // Yjs Doc survives socket reconnects, so this can genuinely happen) is
+    // published by an old socket and then by its replacement. Ownership
+    // must move to the new socket, not be shared by both -- otherwise
+    // closing the old socket later removes awareness state the new socket
+    // is still using.
+    const registry = new SessionRegistry();
+    const oldWs = fakeSocket(attachment([]));
+    const newWs = fakeSocket(attachment([]));
+    registry.add(oldWs, () => {});
+    registry.add(newWs, () => {});
+
+    registry.track(oldWs, [7]);
+    expect(registry.clientIdsOf(oldWs)).toEqual([7]);
+
+    registry.track(newWs, [7]);
+
+    expect(registry.clientIdsOf(oldWs)).toEqual([]);
+    expect(registry.clientIdsOf(newWs)).toEqual([7]);
+  });
+
+  it("does not remove a reclaimed client id when its former socket closes", () => {
+    const registry = new SessionRegistry();
+    const oldWs = fakeSocket(attachment([]));
+    const newWs = fakeSocket(attachment([]));
+    const oldDispose = vi.fn();
+    registry.add(oldWs, oldDispose);
+    registry.add(newWs, () => {});
+
+    registry.track(oldWs, [7]);
+    registry.track(newWs, [7]);
+
+    registry.remove(oldWs);
+
+    expect(oldDispose).toHaveBeenCalledTimes(1);
+    expect(registry.clientIdsOf(newWs)).toEqual([7]);
+  });
 });

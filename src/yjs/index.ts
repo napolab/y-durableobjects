@@ -202,6 +202,16 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     // 破棄するのと同じ理由だが、destroy() は RPC でありインスタンスを
     // 生かしたまま応答する必要があるため、abort() の代わりに Doc を
     // 作り直して同じ効果を得る。
+    //
+    // 差し替える前に古い Doc を破棄すること。WSSharedDoc は y-protocols の
+    // Awareness を構築しており、Awareness は repeating setInterval と
+    // `doc.on('destroy', () => this.destroy())` を登録する。Y.Doc.destroy()
+    // を呼ばずに参照を捨てるだけだと、この interval と listener が Durable
+    // Object の残り寿命の間ずっとリークする（部屋を破棄するたびに 1 つずつ）。
+    // Y.Doc.destroy() は 'destroy' イベントを発火して自身の全リスナーを
+    // 解除するので、Awareness の破棄はそれだけで連鎖する
+    // (node_modules の y-protocols/awareness.js で確認済み)。
+    this.doc.destroy();
     this.doc = new WSSharedDoc();
     this.wireDocListeners();
   }

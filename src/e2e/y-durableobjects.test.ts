@@ -688,6 +688,37 @@ describe("YDurableObjects", () => {
     });
   });
 
+  it("destroys the replaced document instead of only discarding it", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      const oldDoc = instance.doc;
+
+      await instance.destroy();
+
+      // destroy() replaces this.doc with a fresh WSSharedDoc. WSSharedDoc's
+      // constructor builds a y-protocols Awareness, which installs a
+      // repeating setInterval and a `doc.on('destroy', ...)` listener that
+      // stay alive until the Yjs document itself is destroyed. If the old
+      // doc is merely dropped (`this.doc = new WSSharedDoc()`) instead of
+      // destroyed first, that interval and listener leak for the rest of
+      // this Durable Object's lifetime -- once per room destruction.
+      //
+      // Y.Doc.destroy() sets `isDestroyed = true` and emits 'destroy',
+      // which is what Awareness listens for to clear its own interval (see
+      // node_modules/.pnpm/y-protocols@*/node_modules/y-protocols/awareness.js,
+      // lines 78-88: `doc.on('destroy', () => this.destroy())`, and
+      // `destroy()` calls `clearInterval(this._checkInterval)`). isDestroyed
+      // is the only state destroy() leaves behind that a test can observe
+      // directly -- the timer/listener cleanup itself isn't inspectable
+      // from here.
+      expect(oldDoc.isDestroyed).toBe(true);
+      expect(instance.doc).not.toBe(oldDoc);
+      expect(instance.doc.isDestroyed).toBe(false);
+    });
+  });
+
   it("drains the persistence queue before deleting so a slow write cannot resurrect data after destroy", async () => {
     const id = env.Y_DURABLE_OBJECTS.newUniqueId();
     const stub = env.Y_DURABLE_OBJECTS.get(id);

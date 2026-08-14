@@ -67,9 +67,60 @@ Cloudflare rejects it with `storage_type_mismatch`.
 
 Run both versions side by side and copy each room across:
 
-1. Keep your existing v1 binding (for example `Y_LEGACY`) pinned to
-   `y-durableobjects@1`.
-2. Add a new binding backed by v2 with `new_sqlite_classes`.
+1. Depend on both package versions at once, using npm aliasing to install
+   the old one under a different name:
+
+   ```json
+   {
+     "dependencies": {
+       "y-durableobjects": "^2.0.0",
+       "y-durableobjects-v1": "npm:y-durableobjects@^1"
+     }
+   }
+   ```
+
+   Each installed version exports its own `YDurableObjects` class, so
+   re-export them from your Worker's entry script under distinct local
+   names — this is what lets the wrangler config below register them as two
+   separate Durable Object classes:
+
+   ```typescript
+   export { YDurableObjects as YDurableObjectsLegacy } from "y-durableobjects-v1";
+   export { YDurableObjects as YDurableObjectsSqlite } from "y-durableobjects";
+   ```
+
+2. In `wrangler.toml`, keep your existing v1 migration entry byte-for-byte —
+   migration history is append-only and a namespace's storage type is
+   immutable, so editing tag `"v1"` (renaming its class or switching it to
+   `new_sqlite_classes`) cannot convert the already-deployed key-value
+   namespace and will break it. Instead **append** a new migration with a
+   new tag that registers a distinct class name for the SQLite-backed
+   object, and add a second binding for it:
+
+   ```toml
+   [[durable_objects.bindings]]
+   name = "Y_LEGACY"
+   class_name = "YDurableObjectsLegacy"
+
+   [[durable_objects.bindings]]
+   name = "Y_DURABLE_OBJECTS"
+   class_name = "YDurableObjectsSqlite"
+
+   [[migrations]]
+   tag = "v1"
+   new_classes = ["YDurableObjectsLegacy"] # unchanged from what's already deployed
+
+   [[migrations]]
+   tag = "v2"
+   new_sqlite_classes = ["YDurableObjectsSqlite"] # appended, new tag, new class name
+   ```
+
+   The class name your v1 binding already points to in production may not
+   literally be `YDurableObjectsLegacy` — use whatever name is actually
+   recorded in your deployed `"v1"` migration entry (do not rename it), and
+   pick any unused name for the new SQLite class as long as it's different
+   from the legacy one.
+
 3. Copy each room over. `getYDoc()` returns a raw Yjs update and v2's
    `updateYDoc()` accepts one, so a single round trip is enough:
 
@@ -87,7 +138,10 @@ app.post("/migrate/:id", async (c) => {
 });
 ```
 
-4. Once every room is copied, remove the v1 binding.
+4. Once every room is copied, remove the v1 binding, its export, and the
+   `y-durableobjects-v1` dependency. Leave the `"v1"` migration entry in
+   `wrangler.toml` in place — migration history is append-only, so old tags
+   must stay even after their class is no longer bound.
 
 ### Document size
 

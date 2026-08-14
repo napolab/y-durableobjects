@@ -1,3 +1,16 @@
+# NOTE: This file is the test fixture for a fresh, never-deployed local
+# environment only (it is exercised by `pnpm test`, not shipped to anyone).
+# Rewriting the "v1" migration entry below to `new_sqlite_classes` is safe
+# here purely because nothing has ever been deployed against it.
+#
+# If you already have a deployed v1 (key-value backend) Worker, do NOT copy
+# this pattern: migration history in wrangler is append-only and a
+# namespace's storage type is immutable, so rewriting an existing "v1"
+# entry cannot convert its storage and will leave the binding pointed at a
+# SQLite-only class instance backed by key-value storage, which fails
+# `assertSqliteBackend`. APPEND a new migration with a new tag and a
+# distinct class name instead — see the "Migrating from v1 (key-value
+# backend)" section in README.md.
 name = "yjs-workers"
 main = "src/e2e/index.ts"
 compatibility_date = "2025-04-01"
