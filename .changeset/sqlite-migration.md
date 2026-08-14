@@ -23,6 +23,11 @@ key-value backend had forced.
 - Compaction no longer exceeds the 128-key limit of `delete()`.
 - Closing one connection no longer clears every participant's awareness state.
 - Updates are persisted in order and awaited rather than left as floating promises.
+- If a storage write fails, the Durable Object now closes every connection
+  (`1011`) and aborts itself instead of continuing to serve in-memory state
+  that storage doesn't have. This is a deliberate mass disconnect, not an
+  outage: Yjs clients hold the full document, so they reconnect and re-sync
+  automatically.
 - Sync step 2 replies go only to the requesting client instead of the whole room.
 - Updates are no longer echoed back to their sender.
 - A malformed binary message closes only that connection instead of resetting

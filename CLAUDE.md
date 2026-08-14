@@ -97,4 +97,6 @@ Tests follow these patterns:
 - Unit tests for individual components
 - Integration tests using Cloudflare Workers test environment
 - WebSocket connection tests with mock implementations
-- Storage tests with in-memory implementations
+- Storage tests run against the real Durable Objects SQLite backend via
+  `runInDurableObject` (`@cloudflare/vitest-pool-workers`), not an in-memory
+  fake

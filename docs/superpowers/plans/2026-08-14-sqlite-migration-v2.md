@@ -1709,12 +1709,12 @@ git commit -m "feat!: add hibernation auto-response, SQLite backend assertion, a
 
 ### Task 9: 公開 API を整える
 
-`updateYDoc` が生の Yjs update を受け取るようにして `getYDoc()` との往復を成立させ（H-3）、`yRoute` を `getByName` に切り替える。
+`updateYDoc` が生の Yjs update を受け取るようにして `getYDoc()` との往復を成立させる（H-3）。`yRoute` の `obj.get(obj.idFromName(id))` はそのまま維持する（`getByName` へは切り替えない — 理由は Step 5 を参照）。
 
 **Files:**
 - Modify: `src/yjs/index.ts`（`updateYDoc`）
-- Modify: `src/index.ts:16`（`idFromName` → `getByName`）
-- Modify: `src/e2e/index.ts:25-26,45-46,55-56`（同上）
+- Modify なし: `src/index.ts`（`idFromName` の二段形式を維持。Step 5 参照）
+- Modify なし: `src/e2e/index.ts`（同上）
 - Test: `src/e2e/y-durableobjects.test.ts`（`updateYDoc` のテストを書き換え）
 
 **Interfaces:**
@@ -1785,16 +1785,16 @@ Expected: FAIL — `updateYDoc` が生の update をプロトコルメッセー�
 
 `createSyncMessage` でラップして `updateYDoc` に渡している箇所（Task 7・Task 8 で追加したテストを含む）を、生の update を渡すように修正する。`webSocketMessage` に渡す箇所は引き続き `createSyncMessage` が必要である。
 
-- [ ] **Step 5: getByName に切り替える**
+- [ ] **Step 5: `getByName` は採用しない（変更なし）**
 
-`src/index.ts:15-16` を置き換える。
+`src/index.ts:15-16` および `src/e2e/index.ts` の該当箇所は、引き続き
+`obj.get(obj.idFromName(id))` の二段形式を使う。`getByName` には切り替えない。
 
-```ts
-    const obj = selector(c.env as E["Bindings"]);
-    const stub = obj.getByName(c.req.param("id"));
-```
-
-`src/e2e/index.ts` の 3 箇所（`:25-26`, `:45-46`, `:55-56`）も同様に `const stub = c.env.Y_DURABLE_OBJECTS.getByName(roomId);` に置き換える。
+> **理由**: 本リポジトリにコミットされている `worker-configuration.d.ts` の
+> `DurableObjectNamespace` 宣言には `newUniqueId` / `idFromName` /
+> `idFromString` / `get` / `jurisdiction` しか存在せず、`getByName` は
+> 宣言されていない。そのため `getByName` を使うコードは本リポジトリの型定義
+> ではコンパイルできず、`pnpm typecheck` が失敗する。
 
 - [ ] **Step 6: テストが通ることを確認する**
 
@@ -2005,7 +2005,7 @@ git commit -m "docs: document the SQLite migration and add the v2 changeset"
 | hibernation 衛生 | Task 8 |
 | KV バックエンド検出 | Task 8 |
 | `destroy()` | Task 8 |
-| `getByName` | Task 9 |
+| `getByName` は不採用（二段形式を維持） | Task 9 |
 | 移行レシピの文書化 | Task 10 |
 | 公開型の変更 | Task 4（`YStorage`）、Task 5（`WSSharedDoc`）、Task 6（`SessionAttachment`） |
 
