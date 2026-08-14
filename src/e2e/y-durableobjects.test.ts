@@ -250,6 +250,55 @@ describe("YDurableObjects", () => {
     });
   });
 
+  it("unsubscribes the departing connection before broadcasting its awareness removal", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      await instance.createRoom("room1");
+      const [server] = Array.from(instance.sessions.sockets());
+
+      // The departing socket must genuinely own awareness state, or
+      // removeAwarenessStates() in unregisterWebSocket() has nothing to
+      // remove and never emits "update" — in which case the handler below
+      // would never run and the observation would never be recorded,
+      // making the test vacuously pass no matter the ordering.
+      const awareness = new Awareness(new Doc());
+      awareness.setLocalStateField("user", { name: "a" });
+      await instance.webSocketMessage(
+        server,
+        createAwarenessMessage(awareness).slice(0).buffer,
+      );
+      expect(instance.sessions.clientIdsOf(server)).toEqual([
+        awareness.clientID,
+      ]);
+
+      // Assert the ordering invariant behaviourally, without relying on
+      // ws.send() throwing (the broadcast guard added for Finding 2 means a
+      // throw there no longer surfaces as a test failure on its own — see
+      // the toggle-off note in the report for why that guard alone doesn't
+      // prove the ordering is right). Capture the observation inside the
+      // handler rather than asserting inside it, so a failure surfaces as a
+      // normal assertion in the test body instead of an exception thrown
+      // from deep inside Awareness's emit() and swallowed by
+      // unregisterWebSocket()'s own try/catch.
+      let serverStillRegisteredWhenAwarenessUpdateFired: boolean | undefined;
+      instance.doc.awareness.on("update", () => {
+        serverStillRegisteredWhenAwarenessUpdateFired =
+          instance.sessions.has(server);
+      });
+
+      await instance.webSocketClose(server);
+
+      // Guard against a vacuous pass: the handler must actually have run.
+      expect(serverStillRegisteredWhenAwarenessUpdateFired).not.toBeUndefined();
+      // The session must already be gone by the time the awareness removal
+      // broadcasts — i.e. sessions.remove(ws) ran before
+      // removeAwarenessStates(...) in unregisterWebSocket().
+      expect(serverStillRegisteredWhenAwarenessUpdateFired).toBe(false);
+    });
+  });
+
   it("derives awareness ownership from the WebSocket origin observed at runtime", async () => {
     const id = env.Y_DURABLE_OBJECTS.newUniqueId();
     const stub = env.Y_DURABLE_OBJECTS.get(id);
