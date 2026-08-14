@@ -469,6 +469,51 @@ describe("YDurableObjects", () => {
     });
   });
 
+  it("still unregisters the session and resolves when close() throws inside the malformed-message exception boundary", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      await instance.createRoom("room1");
+      const [server] = Array.from(instance.sessions.sockets());
+
+      const awareness = new Awareness(new Doc());
+      awareness.setLocalStateField("user", { name: "a" });
+      await instance.webSocketMessage(
+        server,
+        createAwarenessMessage(awareness).slice(0).buffer,
+      );
+      expect(instance.sessions.clientIdsOf(server)).toEqual([
+        awareness.clientID,
+      ]);
+
+      // workerd throws if close() is called on a socket that is already
+      // closed or errored -- exactly what could be true of the socket that
+      // just sent a malformed frame. Simulate that here.
+      server.close = () => {
+        throw new Error("already closed");
+      };
+
+      const malformed = new Uint8Array([99]).buffer;
+
+      // webSocketMessage must still resolve normally: the close() throwing
+      // must not escape the exception boundary and reject the call, or the
+      // whole room resets on a single malformed frame -- the exact outage
+      // H-4 exists to prevent.
+      await expect(
+        instance.webSocketMessage(server, malformed),
+      ).resolves.toBeUndefined();
+
+      // And unregisterWebSocket() must still have run despite close()
+      // throwing, or the session/awareness leak IMPORTANT 3 fixed comes
+      // back for any socket close() fails on.
+      expect(instance.sessions.has(server)).toBe(false);
+      expect(instance.doc.awareness.getStates().has(awareness.clientID)).toBe(
+        false,
+      );
+    });
+  });
+
   it("persists an update before webSocketMessage resolves", async () => {
     const id = env.Y_DURABLE_OBJECTS.newUniqueId();
     const stub = env.Y_DURABLE_OBJECTS.get(id);

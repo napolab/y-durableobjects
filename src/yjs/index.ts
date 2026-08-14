@@ -217,7 +217,21 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error("[y-durableobjects] invalid message", error);
-      ws.close(1003, "invalid message");
+
+      // すでに閉じている・エラー状態のソケットに close() を呼ぶと workerd は
+      // 例外を投げることがある（destroy()/onPersistFailure と同じ危険）。
+      // それがこの下の unregisterWebSocket() 呼び出しを妨げてはいけない。
+      // 妨げると unregisterWebSocket が一生呼ばれず、WSSharedDoc のリスナーが
+      // リークして以降の broadcast がずっと失敗するばかりか、この catch
+      // ブロックの外へ例外が漏れて webSocketMessage 全体が reject し、DO が
+      // リセットされて部屋の全接続が落ちる — このガード自体が防ごうとして
+      // いた全断障害を、形を変えて再現してしまう。
+      try {
+        ws.close(1003, "invalid message");
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error(e);
+      }
 
       // この DO 自身が閉じたソケットに対して webSocketClose が確実に発火する
       // 保証はない。発火しなければ unregisterWebSocket が一生呼ばれず、
