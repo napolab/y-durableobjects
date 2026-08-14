@@ -1,8 +1,10 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { hc } from "hono/client";
 import { expect, describe, it } from "vitest";
+import { Doc, encodeStateAsUpdate } from "yjs";
 
 import { YDurableObjects } from "../yjs";
+import { YSqliteStorage } from "../yjs/storage";
 
 import { createSyncMessage, createYDocMessage } from "./helper";
 
@@ -19,6 +21,42 @@ describe("YDurableObjects", () => {
       expect(instance.doc).toBeDefined();
       expect(instance.storage).toBeDefined();
     });
+  });
+
+  it("rehydrates the document from SQLite storage on startup", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(
+      stub,
+      async (instance: InternalYDurableObject, state) => {
+        // Write directly into this instance's SQLite storage, bypassing
+        // instance.doc entirely, so that the only way for the content to
+        // reach instance.doc is through onStart()'s getUpdate()/applyUpdate
+        // wiring — the exact seam this task changed.
+        const storage = new YSqliteStorage(state.storage.sql);
+        const seed = new Doc();
+        seed.getText("root").insert(0, "Hello World!");
+        await storage.storeUpdate(encodeStateAsUpdate(seed));
+
+        // vitest-pool-workers keeps this Durable Object instance alive for
+        // the whole worker lifetime, so there is no way to force a genuinely
+        // fresh construction here. Invoking onStart() directly is the
+        // workable substitute for a cold start: it re-runs the exact
+        // rehydration logic construction would have run.
+        //
+        // Known wart surfaced by this: onStart() unconditionally
+        // re-registers the doc "update" and awareness "update" listeners,
+        // so after this second call the instance carries duplicate
+        // listeners. That does not affect this assertion (rehydration reads
+        // storage once, before any listener fires), but it is a real
+        // pre-existing issue in onStart() worth flagging for Task 7, which
+        // rewrites this listener wiring.
+        await instance.onStart();
+
+        expect(instance.doc.getText("root").toString()).toBe("Hello World!");
+      },
+    );
   });
 
   it("create a room from request", async () => {
