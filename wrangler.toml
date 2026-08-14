@@ -1,6 +1,6 @@
 name = "yjs-workers"
 main = "src/e2e/index.ts"
-compatibility_date = "2024-04-05"
+compatibility_date = "2025-04-01"
 compatibility_flags=["nodejs_compat"]
 
 [[durable_objects.bindings]]
@@ -9,5 +9,5 @@ class_name = "YDurableObjects"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["YDurableObjects"]
+new_sqlite_classes = ["YDurableObjects"]
 

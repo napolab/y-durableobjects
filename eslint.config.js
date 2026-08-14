@@ -77,6 +77,7 @@ const config = [
         DurableObjectStub: "readonly",
         DurableObjectTransaction: "readonly",
         DurableObjectState: "readonly",
+        SqlStorage: "readonly",
         WebSocketPair: "readonly",
         RequestInfo: "readonly",
       },
