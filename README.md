@@ -41,7 +41,7 @@ This configuration ensures that your Cloudflare Worker can correctly instantiate
 ```toml
 name = "your-worker-name"
 main = "src/index.ts"
-compatibility_date = "2024-04-05"
+compatibility_date = "2025-04-01"
 
 account_id = "your-account-id"
 workers_dev = true
@@ -53,10 +53,59 @@ bindings = [
 ]
 
 # Durable Objects migrations
+# v2 requires the SQLite storage backend.
 [[migrations]]
 tag = "v1"
-new_classes = ["YDurableObjects"]
+new_sqlite_classes = ["YDurableObjects"]
 ```
+
+## Migrating from v1 (key-value backend)
+
+v2 requires the SQLite storage backend. A Durable Object namespace's storage
+type is immutable, so an existing v1 namespace cannot be converted in place —
+Cloudflare rejects it with `storage_type_mismatch`.
+
+Run both versions side by side and copy each room across:
+
+1. Keep your existing v1 binding (for example `Y_LEGACY`) pinned to
+   `y-durableobjects@1`.
+2. Add a new binding backed by v2 with `new_sqlite_classes`.
+3. Copy each room over. `getYDoc()` returns a raw Yjs update and v2's
+   `updateYDoc()` accepts one, so a single round trip is enough:
+
+```typescript
+app.post("/migrate/:id", async (c) => {
+  const id = c.req.param("id");
+  const legacy = c.env.Y_LEGACY.get(c.env.Y_LEGACY.idFromName(id));
+  const next = c.env.Y_DURABLE_OBJECTS.get(
+    c.env.Y_DURABLE_OBJECTS.idFromName(id),
+  );
+
+  await next.updateYDoc(await legacy.getYDoc());
+
+  return c.json({ ok: true });
+});
+```
+
+4. Once every room is copied, remove the v1 binding.
+
+### Document size
+
+Durable Objects give each instance 10GB of SQLite storage, but the whole
+document must fit in the instance's 128MB of memory. That memory limit — not
+storage — is the practical ceiling on document size.
+
+### Keepalive and hibernation
+
+v2 registers a `"ping"` / `"pong"` auto-response via
+`setWebSocketAutoResponse`. When a client sends `"ping"` as a keepalive, the
+Workers runtime answers with `"pong"` directly — the Durable Object is never
+woken from hibernation to run `webSocketMessage`, because the auto-response
+is matched before that handler would be invoked at all. This interception is
+the entire point of the hibernation optimization, and it's the single biggest
+lever on duration billing. As a secondary safety net, `webSocketMessage`
+ignores non-binary (string) messages, so even if a `"ping"` ever did reach a
+woken instance it would be a no-op.
 
 ## Usage
 
@@ -173,6 +222,9 @@ export { YDurableObjects };
 #### updateYDoc
 
 This API updates the state of the YDoc within a Durable Object.
+
+`updateYDoc` takes a raw Yjs update — the same format `getYDoc` returns and
+`Y.encodeStateAsUpdate(doc)` produces. It is not a sync-protocol message.
 
 Example usage in Hono:
 

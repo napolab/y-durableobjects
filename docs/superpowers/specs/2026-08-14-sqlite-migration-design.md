@@ -84,7 +84,7 @@ src/yjs/
   hono/index.ts             変更なし
   client/setup.ts           変更なし
 src/middleware/index.ts     変更なし
-src/index.ts                yRoute（getByName への変更のみ）
+src/index.ts                変更なし（`obj.get(obj.idFromName(id))` の二段形式を維持）
 ```
 
 `SessionRegistry` を独立させることで、awareness の所有権管理・attachment の読み書き・hibernation 復帰時の再構築を 1 箇所に閉じ込め、`YDurableObjects` 本体の肥大化を防ぐ。単体でテスト可能な単位とする。
@@ -352,14 +352,24 @@ v1 と v2 を別バインディングに共存させ、RPC で内容をコピー
 ```ts
 app.post("/migrate/:id", async (c) => {
   const id = c.req.param("id");
-  const legacy = c.env.Y_LEGACY.getByName(id);           // v1 / KV バックエンド
-  const next   = c.env.Y_DURABLE_OBJECTS.getByName(id);  // v2 / SQLite バックエンド
+  const legacy = c.env.Y_LEGACY.get(c.env.Y_LEGACY.idFromName(id)); // v1 / KV バックエンド
+  const next = c.env.Y_DURABLE_OBJECTS.get(
+    c.env.Y_DURABLE_OBJECTS.idFromName(id),
+  ); // v2 / SQLite バックエンド
   await next.updateYDoc(await legacy.getYDoc());
   return c.json({ ok: true });
 });
 ```
 
 v1 の `getYDoc()` は元から生の update を返しており、v2 の `updateYDoc()` は生の update を受け取るため、この組み合わせが成立する。ライブラリ側に移行専用コードを持つ必要がない。
+
+> **`getByName` を採用しなかった理由**: 本リポジトリにコミットされている
+> `worker-configuration.d.ts` の `DurableObjectNamespace` 宣言には
+> `newUniqueId` / `idFromName` / `idFromString` / `get` / `jurisdiction` しか
+> 存在せず、`getByName` は宣言されていない。そのため `getByName` を使うコード
+> は本リポジトリの型定義ではコンパイルできない。実装（`src/index.ts` の
+> `yRoute`）およびこの移行レシピは、いずれも従来どおり
+> `obj.get(obj.idFromName(id))` の二段形式を採用する。
 
 ### 設定ファイル
 
@@ -373,7 +383,9 @@ v1 の `getYDoc()` は元から生の update を返しており、v2 の `update
 
 ### `yRoute`
 
-`obj.get(obj.idFromName(id))` を `obj.getByName(id)` に置き換える。それ以外の挙動は変更しない。
+`obj.get(obj.idFromName(id))` の二段形式を維持する。`getByName` への置き換えは行わない
+— 本リポジトリの `worker-configuration.d.ts` の `DurableObjectNamespace` 宣言に
+`getByName` が存在しないため、置き換えると型チェックが通らない。挙動は変更しない。
 
 ## 8. テスト戦略
 
