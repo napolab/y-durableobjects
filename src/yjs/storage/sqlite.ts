@@ -51,10 +51,8 @@ const concat = (parts: readonly Uint8Array[]): Uint8Array => {
 
 export class YSqliteStorage implements YStorage {
   readonly #sql: SqlStorage;
-  // eslint-disable-next-line no-unused-private-class-members -- read by commit() in Task 3
   readonly #maxRows: number;
   readonly #maxChunkBytes: number;
-  // eslint-disable-next-line no-unused-private-class-members -- read by commit() in Task 3
   #rowCount: number;
 
   constructor(sql: SqlStorage, options?: YSqliteStorageOptions) {
@@ -80,10 +78,29 @@ export class YSqliteStorage implements YStorage {
   async storeUpdate(update: Uint8Array): Promise<void> {
     this.#sql.exec(INSERT_UPDATE, UpdateKind.standalone, update);
     this.#rowCount += 1;
+
+    if (this.#rowCount > this.#maxRows) {
+      await this.commit();
+    }
   }
 
   async commit(): Promise<void> {
-    // Task 3 で実装する
+    if (this.#rowCount <= 1) return;
+
+    const updates = this.#readAll();
+    if (updates.length === 0) return;
+
+    const chunks = this.#split(mergeUpdates(updates));
+
+    // ここから下では await を挟まないこと。
+    // 連続した同期書き込みが暗黙のトランザクションとして atomic に適用される。
+    this.#sql.exec(DELETE_ALL_UPDATES);
+    for (const [index, chunk] of chunks.entries()) {
+      const kind =
+        index === 0 ? UpdateKind.standalone : UpdateKind.continuation;
+      this.#sql.exec(INSERT_UPDATE, kind, chunk);
+    }
+    this.#rowCount = chunks.length;
   }
 
   async destroy(): Promise<void> {
@@ -125,5 +142,30 @@ export class YSqliteStorage implements YStorage {
     if (pending.length > 0) updates.push(concat(pending));
 
     return updates;
+  }
+
+  /**
+   * マージ済みの update を maxChunkBytes 以下のバイト断片に分割する。
+   * subarray ではなく slice を使ってコピーを作る。ビューをそのまま
+   * バインドすると基底バッファ全体が書き込まれる可能性があるため。
+   */
+  #split(update: Uint8Array): Uint8Array[] {
+    if (update.byteLength <= this.#maxChunkBytes) return [update];
+
+    const chunks: Uint8Array[] = [];
+    for (
+      let offset = 0;
+      offset < update.byteLength;
+      offset += this.#maxChunkBytes
+    ) {
+      chunks.push(
+        update.slice(
+          offset,
+          Math.min(offset + this.#maxChunkBytes, update.byteLength),
+        ),
+      );
+    }
+
+    return chunks;
   }
 }

@@ -1,6 +1,6 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { Doc, applyUpdate, encodeStateAsUpdate } from "yjs";
+import { Doc, applyUpdate, encodeStateAsUpdate, mergeUpdates } from "yjs";
 
 import { YSqliteStorage } from "./sqlite";
 
@@ -15,6 +15,20 @@ const withStorage = async (
     await fn(new YSqliteStorage(state.storage.sql, options));
   });
 };
+
+const withStorageAndSql = async (
+  fn: (storage: YSqliteStorage, sql: SqlStorage) => Promise<void>,
+  options?: YSqliteStorageOptions,
+): Promise<void> => {
+  const stub = env.Y_DURABLE_OBJECTS.get(env.Y_DURABLE_OBJECTS.newUniqueId());
+  await runInDurableObject(stub, async (_instance, state) => {
+    await fn(new YSqliteStorage(state.storage.sql, options), state.storage.sql);
+  });
+};
+
+const countRows = (sql: SqlStorage): number =>
+  sql.exec<{ count: number }>("SELECT COUNT(*) AS count FROM updates").one()
+    .count;
 
 const docWith = (text: string): Doc => {
   const doc = new Doc();
@@ -80,6 +94,92 @@ describe("YSqliteStorage", () => {
       await storage.destroy();
 
       expect(await storage.getUpdate()).toBeNull();
+    });
+  });
+
+  it("compacts once the row threshold is exceeded", async () => {
+    await withStorageAndSql(
+      async (storage, sql) => {
+        const doc = new Doc();
+        const text = doc.getText("root");
+        const updates: Uint8Array[] = [];
+        doc.on("update", (update: Uint8Array) => updates.push(update));
+        for (let i = 0; i < 50; i++) {
+          text.insert(text.length, "x");
+        }
+        for (const update of updates) {
+          await storage.storeUpdate(update);
+        }
+
+        // maxRows 10 に対し 50 件保存したので、行数は大幅に減っているはず
+        expect(countRows(sql)).toBeLessThanOrEqual(10);
+
+        const restored = await storage.getUpdate();
+        expect(textOf(restored!)).toBe(text.toString());
+      },
+      { maxRows: 10 },
+    );
+  });
+
+  it("splits a compacted update that exceeds maxChunkBytes and restores it", async () => {
+    await withStorageAndSql(
+      async (storage, sql) => {
+        const doc = new Doc();
+        const text = doc.getText("root");
+        const updates: Uint8Array[] = [];
+        doc.on("update", (update: Uint8Array) => updates.push(update));
+        for (let i = 0; i < 20; i++) {
+          text.insert(text.length, "abcdefghij".repeat(50));
+        }
+        for (const update of updates) {
+          await storage.storeUpdate(update);
+        }
+
+        // This is the ordering regression test for the compaction/chunk-split
+        // path. Byte-fragment reassembly is the one place in this library
+        // where ordering is genuinely load-bearing: concatenating chunks out
+        // of `seq` order produces garbage bytes that no amount of CRDT
+        // convergence in Y.mergeUpdates repairs. Asserting on the restored
+        // *text* only proves the document round-trips (mergeUpdates could
+        // in principle mask a reordering that a stricter comparison would
+        // catch), so we additionally capture the merged bytes before
+        // compaction and require getUpdate() to reproduce them exactly.
+        const expectedBytes = mergeUpdates(updates);
+
+        await storage.commit();
+
+        // 512 バイトずつに分割されるので、複数行になっているはず
+        expect(countRows(sql)).toBeGreaterThan(1);
+
+        const restored = await storage.getUpdate();
+        expect(textOf(restored!)).toBe(text.toString());
+        expect(restored!).toEqual(expectedBytes);
+      },
+      { maxRows: 1000, maxChunkBytes: 512 },
+    );
+  });
+
+  it("stores a document larger than the legacy 128KiB key-value limit", async () => {
+    await withStorage(async (storage) => {
+      const doc = new Doc();
+      // 300KB 相当。KV バックエンドでは 1 キーに収まらず保存に失敗していた（C-2）
+      doc.getText("root").insert(0, "y".repeat(300 * 1024));
+      await storage.storeUpdate(encodeStateAsUpdate(doc));
+      await storage.commit();
+
+      const restored = await storage.getUpdate();
+
+      expect(textOf(restored!).length).toBe(300 * 1024);
+    });
+  });
+
+  it("is a no-op when there is at most one row to compact", async () => {
+    await withStorageAndSql(async (storage, sql) => {
+      await storage.storeUpdate(encodeStateAsUpdate(docWith("single")));
+      await storage.commit();
+
+      expect(countRows(sql)).toBe(1);
+      expect(textOf((await storage.getUpdate())!)).toBe("single");
     });
   });
 
