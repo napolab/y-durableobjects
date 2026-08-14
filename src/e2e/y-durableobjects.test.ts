@@ -8,7 +8,7 @@ import {
 } from "lib0/encoding";
 import { expect, describe, it } from "vitest";
 import { Awareness, encodeAwarenessUpdate } from "y-protocols/awareness";
-import { Doc, encodeStateAsUpdate } from "yjs";
+import { Doc, applyUpdate, encodeStateAsUpdate } from "yjs";
 
 import { YDurableObjects } from "../yjs";
 import { messageType } from "../yjs/message-type";
@@ -116,18 +116,42 @@ describe("YDurableObjects", () => {
     });
   });
 
-  it("updates YDoc correctly", async () => {
-    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
-    const stub = env.Y_DURABLE_OBJECTS.get(id);
+  it("round-trips between getYDoc and updateYDoc", async () => {
+    const source = env.Y_DURABLE_OBJECTS.get(
+      env.Y_DURABLE_OBJECTS.newUniqueId(),
+    );
+    const target = env.Y_DURABLE_OBJECTS.get(
+      env.Y_DURABLE_OBJECTS.newUniqueId(),
+    );
 
-    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
-      const message = createYDocMessage();
-      const update = createSyncMessage(message);
-      await instance.updateYDoc(update.slice(0));
+    const message = createYDocMessage("Hello World!");
+    await runInDurableObject(
+      source,
+      async (instance: InternalYDurableObject) => {
+        await instance.updateYDoc(message.slice(0));
+      },
+    );
 
-      const docState = await instance.getYDoc();
-      expect(docState).toEqual(message);
-    });
+    const exported = await runInDurableObject(
+      source,
+      (instance: InternalYDurableObject) => instance.getYDoc(),
+    );
+    await runInDurableObject(
+      target,
+      async (instance: InternalYDurableObject) => {
+        // getYDoc の出力をそのまま updateYDoc に渡せる
+        await instance.updateYDoc(exported);
+      },
+    );
+
+    const copied = await runInDurableObject(
+      target,
+      (instance: InternalYDurableObject) => instance.getYDoc(),
+    );
+
+    const doc = new Doc();
+    applyUpdate(doc, copied);
+    expect(doc.getText("root").toString()).toBe("Hello World!");
   });
 
   it("handles WebSocket messages correctly", async () => {
@@ -511,9 +535,7 @@ describe("YDurableObjects", () => {
 
     await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
       await instance.createRoom("room1");
-      await instance.updateYDoc(
-        createSyncMessage(createYDocMessage("bye")).slice(0),
-      );
+      await instance.updateYDoc(createYDocMessage("bye").slice(0));
 
       await instance.destroy();
 
@@ -539,9 +561,7 @@ describe("YDurableObjects", () => {
         throw new Error("already closed");
       };
 
-      await instance.updateYDoc(
-        createSyncMessage(createYDocMessage("bye")).slice(0),
-      );
+      await instance.updateYDoc(createYDocMessage("bye").slice(0));
 
       await expect(instance.destroy()).resolves.toBeUndefined();
       expect(await instance.storage.getUpdate()).toBeNull();

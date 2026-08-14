@@ -127,8 +127,13 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     return this.app.request(request, undefined, this.env);
   }
 
+  /**
+   * 生の Yjs update を適用する。
+   * WebSocket 経路と違い、プロトコルのフレーミングは不要。
+   * getYDoc() の戻り値をそのまま渡せる。
+   */
   async updateYDoc(update: Uint8Array): Promise<void> {
-    this.doc.update(update, RPC_ORIGIN);
+    applyUpdate(this.doc, update, RPC_ORIGIN);
     await this.persist;
     await this.cleanup();
   }
