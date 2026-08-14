@@ -16,6 +16,27 @@ import type { Env } from "hono";
 /** WebSocket 由来でない更新（JS RPC 経由）の origin */
 const RPC_ORIGIN: object = Object.freeze({ source: "rpc" });
 
+const MIGRATION_GUIDE_URL =
+  "https://github.com/napolab/y-durableobjects#migrating-from-v1-key-value-backend";
+
+/**
+ * SQLite バックエンドで動作しているかを確認する。
+ * KV バックエンドでは sql へのアクセスが失敗するため、
+ * 原因不明のクラッシュではなく移行手順を示したエラーにする。
+ */
+const assertSqliteBackend = (storage: DurableObjectStorage): void => {
+  try {
+    storage.sql.exec("SELECT 1");
+  } catch (error) {
+    throw new Error(
+      `y-durableobjects v2 requires the SQLite storage backend. ` +
+        `Use "new_sqlite_classes" in your wrangler migrations. ` +
+        `Migration guide: ${MIGRATION_GUIDE_URL}`,
+      { cause: error },
+    );
+  }
+};
+
 export type { SessionAttachment } from "./session";
 
 export type YDurableObjectsAppType = ReturnType<typeof createApp>;
@@ -41,7 +62,14 @@ export class YDurableObjects<T extends Env> extends DurableObject<
   ) {
     super(state, env);
 
+    assertSqliteBackend(state.storage);
     this.storage = new YSqliteStorage(state.storage.sql);
+
+    // ping を自動応答にすることで、keepalive で Durable Object を
+    // 起こさずに済む。duration 課金に最も効く設定。
+    state.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair("ping", "pong"),
+    );
 
     void this.state.blockConcurrencyWhile(this.onStart.bind(this));
   }
@@ -106,6 +134,24 @@ export class YDurableObjects<T extends Env> extends DurableObject<
   }
   async getYDoc(): Promise<Uint8Array> {
     return encodeStateAsUpdate(this.doc);
+  }
+
+  /** 部屋のデータを削除し、すべての接続を閉じる */
+  async destroy(): Promise<void> {
+    for (const ws of this.state.getWebSockets()) {
+      // すでに閉じている・エラー状態のソケットに close() を呼ぶと workerd は
+      // 例外を投げることがある。1 つのソケットを閉じられないことが他の
+      // ソケットを閉じ損ねたり、下の storage.destroy() の呼び出しを妨げたり
+      // してはいけない。destroy() の存在意義はデータを消すことそのものなので、
+      // 閉じ損ねたソケットが 1 つあってもデータ削除は必ず到達させる。
+      try {
+        ws.close(1001, "room destroyed");
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error(e);
+      }
+    }
+    await this.storage.destroy();
   }
 
   async webSocketMessage(

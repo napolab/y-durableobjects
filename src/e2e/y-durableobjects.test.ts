@@ -492,4 +492,59 @@ describe("YDurableObjects", () => {
       },
     );
   });
+
+  it("configures a ping/pong auto response", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (_instance, state) => {
+      const pair = state.getWebSocketAutoResponse();
+
+      expect(pair?.request).toBe("ping");
+      expect(pair?.response).toBe("pong");
+    });
+  });
+
+  it("clears the document and closes connections on destroy", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      await instance.createRoom("room1");
+      await instance.updateYDoc(
+        createSyncMessage(createYDocMessage("bye")).slice(0),
+      );
+
+      await instance.destroy();
+
+      expect(await instance.storage.getUpdate()).toBeNull();
+    });
+  });
+
+  it("still destroys storage when one socket's close() throws", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      await instance.createRoom("room1");
+      await instance.createRoom("room1");
+      const [troublesome] = Array.from(instance.sessions.sockets());
+
+      // Same workerd hazard as onPersistFailure: close() on an
+      // already-closed/errored socket throws. destroy()'s per-socket
+      // try/catch must contain it so storage.destroy() is still reached —
+      // otherwise the caller is told the room was destroyed while its data
+      // is still on disk.
+      troublesome.close = () => {
+        throw new Error("already closed");
+      };
+
+      await instance.updateYDoc(
+        createSyncMessage(createYDocMessage("bye")).slice(0),
+      );
+
+      await expect(instance.destroy()).resolves.toBeUndefined();
+      expect(await instance.storage.getUpdate()).toBeNull();
+    });
+  });
 });

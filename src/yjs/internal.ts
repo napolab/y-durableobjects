@@ -25,4 +25,5 @@ export interface InternalYDurableObject {
 
   getYDoc(): Promise<Uint8Array>;
   updateYDoc(update: Uint8Array): Promise<void>;
+  destroy(): Promise<void>;
 }
