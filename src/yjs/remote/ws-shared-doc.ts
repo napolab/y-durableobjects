@@ -136,7 +136,15 @@ export class WSSharedDoc extends Doc implements Notification {
   private broadcast(message: Uint8Array, exclude: unknown) {
     for (const [origin, listener] of this.listeners) {
       if (origin === exclude) continue;
-      listener(message);
+
+      try {
+        listener(message);
+      } catch (e) {
+        // 1 つの接続が切断済み・エラー状態で listener(=ws.send) が例外を
+        // 投げても、それ以降の健全な接続への配信を止めてはいけない。
+        // eslint-disable-next-line no-console
+        console.error(e);
+      }
     }
   }
 }

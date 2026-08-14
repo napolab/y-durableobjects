@@ -124,12 +124,16 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     try {
       // この接続が所有する clientID だけを削除する。
       // 部屋全体の clientID を削除すると他の参加者の presence まで消える。
-      removeAwarenessStates(
-        this.doc.awareness,
-        this.sessions.clientIdsOf(ws),
-        null,
-      );
+      const clientIds = this.sessions.clientIdsOf(ws);
+
+      // 先にリスナーを解除してから removeAwarenessStates を呼ぶこと。
+      // removeAwarenessStates は awareness の "update" を同期的に発火させ、
+      // WSSharedDoc.broadcast がまだ登録されたままの ws.send() を呼んでしまう。
+      // 切断直後のソケットへの send() は例外を投げるため、その場合に
+      // sessions.remove(ws) が実行されずリスナーがリークし、以降このルームの
+      // 配信が全滅する。
       this.sessions.remove(ws);
+      removeAwarenessStates(this.doc.awareness, clientIds, null);
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error(e);

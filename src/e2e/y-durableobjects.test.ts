@@ -187,15 +187,66 @@ describe("YDurableObjects", () => {
       await instance.createRoom("room1");
       const [first, second] = Array.from(instance.sessions.sockets());
 
-      instance.sessions.track(first, [1]);
-      instance.sessions.track(second, [2]);
-      instance.doc.awareness.setLocalStateField("user", { name: "a" });
+      // Each connection publishes real awareness state through an actual
+      // awareness-protocol message, the same way "derives awareness
+      // ownership from the WebSocket origin observed at runtime" does. This
+      // is essential: driving state through the real onStart() awareness
+      // handler is what makes removeAwarenessStates() below have anything
+      // to remove, which is the exact path that broke when
+      // unregisterWebSocket() removed awareness states while the departing
+      // socket was still a registered WSSharedDoc listener (broadcast()
+      // would call send() on an already-closed socket and throw). A version
+      // of this test that sets clientIds by calling sessions.track()
+      // directly, or by calling awareness.setLocalStateField() on the
+      // shared doc (which fires under the *local* client id, not either
+      // socket's), would never exercise that path and would pass even
+      // against the broken ordering.
+      const firstAwareness = new Awareness(new Doc());
+      firstAwareness.setLocalStateField("user", { name: "a" });
+      await instance.webSocketMessage(
+        first,
+        createAwarenessMessage(firstAwareness).slice(0).buffer,
+      );
 
-      await instance.webSocketClose(first);
+      const secondAwareness = new Awareness(new Doc());
+      secondAwareness.setLocalStateField("user", { name: "b" });
+      await instance.webSocketMessage(
+        second,
+        createAwarenessMessage(secondAwareness).slice(0).buffer,
+      );
 
-      // first の clientId だけが除去され、second の所有分は残る
-      expect(instance.sessions.clientIdsOf(second)).toEqual([2]);
+      expect(instance.sessions.clientIdsOf(first)).toEqual([
+        firstAwareness.clientID,
+      ]);
+      expect(instance.sessions.clientIdsOf(second)).toEqual([
+        secondAwareness.clientID,
+      ]);
+
+      // Close `first` the way a real disconnect would leave it: the
+      // underlying socket is already closed by the time webSocketClose()
+      // fires, so any send() on it throws. This reproduces the exact
+      // condition the ordering bug hit — a throwing listener still
+      // registered in WSSharedDoc when removeAwarenessStates() runs.
+      first.close();
+
+      // (a) the call completes without throwing, even though `first` is a
+      // dead socket and, until the fix, awareness removal still tried to
+      // broadcast to it.
+      await expect(instance.webSocketClose(first)).resolves.toBeUndefined();
+
+      // (b) the departing socket is fully unregistered — no leaked session
+      // or listener.
+      expect(instance.sessions.has(first)).toBe(false);
       expect(instance.sessions.size).toBe(1);
+      expect(instance.sessions.clientIdsOf(second)).toEqual([
+        secondAwareness.clientID,
+      ]);
+
+      // (c) the remaining connection's awareness state survives; only the
+      // departing connection's clientId was removed from the room.
+      const states = instance.doc.awareness.getStates();
+      expect(states.has(secondAwareness.clientID)).toBe(true);
+      expect(states.has(firstAwareness.clientID)).toBe(false);
     });
   });
 
