@@ -196,7 +196,18 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     console.error("[y-durableobjects] failed to persist update", error);
 
     for (const ws of this.state.getWebSockets()) {
-      ws.close(1011, "storage failure");
+      // すでに閉じている・エラー状態のソケットに close() を呼ぶと workerd は
+      // 例外を投げる（例えば、この例外境界が 1003 で閉じた直後のソケット、
+      // あるいは今回の失敗の原因になったソケット自身）。1 つのソケットを
+      // 閉じられないことが他のソケットを閉じ損ねたり、下の abort() の
+      // 呼び出しを妨げたりしてはいけない。abort() こそがこのポリシーの
+      // 本体であり、閉じ損ねたソケットが 1 つあっても必ず到達させる。
+      try {
+        ws.close(1011, "storage failure");
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error(e);
+      }
     }
     this.state.abort("failed to persist a Yjs update");
   }

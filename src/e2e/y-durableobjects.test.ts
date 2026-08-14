@@ -70,13 +70,12 @@ describe("YDurableObjects", () => {
         // workable substitute for a cold start: it re-runs the exact
         // rehydration logic construction would have run.
         //
-        // Known wart surfaced by this: onStart() unconditionally
-        // re-registers the doc "update" and awareness "update" listeners,
-        // so after this second call the instance carries duplicate
-        // listeners. That does not affect this assertion (rehydration reads
-        // storage once, before any listener fires), but it is a real
-        // pre-existing issue in onStart() worth flagging for Task 7, which
-        // rewrites this listener wiring.
+        // onStart() guards its doc "update" and awareness "update" listener
+        // registration with a `listenersRegistered` flag (Task 7), so this
+        // second call re-runs rehydration without re-registering either
+        // listener. That guard doesn't affect this assertion either way
+        // (rehydration reads storage once, before any listener fires) — it's
+        // just why calling onStart() twice here is safe to do at all.
         await instance.onStart();
 
         expect(instance.doc.getText("root").toString()).toBe("Hello World!");
@@ -350,6 +349,11 @@ describe("YDurableObjects", () => {
       // テストが依存すべき性質ではない。ここで確かめるべきは「DO がリセット
       // されず、正常な接続が生き残ること」だけ。
       expect(instance.sessions.has(other)).toBe(true);
+
+      // 実際に不正なメッセージを送った接続自体は 1003 で閉じられている。
+      // これがないと、例外境界が ws.close(1003, ...) を一切呼ばない
+      // (単に catch { return; } するだけの) 実装でもこのテストは通ってしまう。
+      expect(first.readyState).not.toBe(WebSocket.READY_STATE_OPEN);
     });
   });
 
@@ -436,6 +440,55 @@ describe("YDurableObjects", () => {
         }
         expect(abortCalled).toBe(true);
         expect(abortReason).toBe("failed to persist a Yjs update");
+      },
+    );
+  });
+
+  it("still closes the other sockets and reaches abort() when one socket's close() throws", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(
+      stub,
+      async (instance: InternalYDurableObject, state: DurableObjectState) => {
+        await instance.createRoom("room1");
+        await instance.createRoom("room1");
+        const [troublesome, healthy] = Array.from(instance.sessions.sockets());
+
+        // workerd throws if close() is called on a socket that is already
+        // closed or errored — exactly what state.getWebSockets() can hand
+        // the failure handler: the socket the exception boundary just
+        // closed with 1003, or the socket whose own error caused this
+        // failure in the first place. Simulate that here.
+        troublesome.close = () => {
+          throw new Error("already closed");
+        };
+
+        let abortCalled = false;
+        state.abort = () => {
+          abortCalled = true;
+        };
+
+        instance.storage.storeUpdate = async () => {
+          throw new Error("simulated storage failure");
+        };
+
+        const message = createSyncMessage(
+          createYDocMessage("will not persist"),
+        );
+
+        // webSocketMessage still resolves normally: the per-socket
+        // try/catch in onPersistFailure must contain the throwing close(),
+        // not let it escape and reject the persist chain.
+        await expect(
+          instance.webSocketMessage(troublesome, message.slice(0).buffer),
+        ).resolves.toBeUndefined();
+
+        // The other socket is not left open just because one close() threw.
+        expect(healthy.readyState).not.toBe(WebSocket.READY_STATE_OPEN);
+        // And critically, abort() — the actual point of this failure
+        // policy — is still reached despite the throw.
+        expect(abortCalled).toBe(true);
       },
     );
   });
