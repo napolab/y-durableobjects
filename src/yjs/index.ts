@@ -11,6 +11,9 @@ import { YSqliteStorage } from "./storage";
 import type { AwarenessChanges } from "../yjs/remote";
 import type { Env } from "hono";
 
+/** WebSocket 由来でない更新（JS RPC 経由）の origin */
+const RPC_ORIGIN: object = Object.freeze({ source: "rpc" });
+
 export type WebSocketAttachment = {
   roomId: string;
   connectedAt: Date;
@@ -86,7 +89,7 @@ export class YDurableObjects<T extends Env> extends DurableObject<
   }
 
   async updateYDoc(update: Uint8Array): Promise<void> {
-    this.doc.update(update);
+    this.doc.update(update, RPC_ORIGIN);
     await this.cleanup();
   }
   async getYDoc(): Promise<Uint8Array> {
@@ -99,8 +102,8 @@ export class YDurableObjects<T extends Env> extends DurableObject<
   ): Promise<void> {
     if (!(message instanceof ArrayBuffer)) return;
 
-    const update = new Uint8Array(message);
-    await this.updateYDoc(update);
+    this.doc.update(new Uint8Array(message), ws);
+    await this.cleanup();
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
@@ -115,7 +118,7 @@ export class YDurableObjects<T extends Env> extends DurableObject<
 
   protected registerWebSocket(ws: WebSocket) {
     setupWSConnection(ws, this.doc);
-    const s = this.doc.notify((message) => {
+    const s = this.doc.notify(ws, (message) => {
       ws.send(message);
     });
     this.sessions.set(ws, s);

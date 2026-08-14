@@ -9,6 +9,8 @@ describe("createTypedEncoder", () => {
   const cases = [
     ["sync", messageType.sync],
     ["awareness", messageType.awareness],
+    ["auth", messageType.auth],
+    ["queryAwareness", messageType.queryAwareness],
   ] as const;
 
   it.each(cases)(
