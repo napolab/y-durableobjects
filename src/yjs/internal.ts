@@ -1,12 +1,12 @@
 import type { WSSharedDoc } from "./remote";
+import type { SessionRegistry } from "./session";
 import type { YSqliteStorage } from "./storage";
 
 export interface InternalYDurableObject {
   // private state
   doc: WSSharedDoc;
   storage: YSqliteStorage;
-  sessions: Map<WebSocket, () => void>;
-  awarenessClients: Set<number>;
+  sessions: SessionRegistry;
 
   // private api
 

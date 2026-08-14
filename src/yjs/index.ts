@@ -6,18 +6,17 @@ import { WSSharedDoc } from "../yjs/remote";
 
 import { setupWSConnection } from "./client/setup";
 import { createApp } from "./hono";
+import { SessionRegistry } from "./session";
 import { YSqliteStorage } from "./storage";
 
+import type { SessionAttachment } from "./session";
 import type { AwarenessChanges } from "../yjs/remote";
 import type { Env } from "hono";
 
 /** WebSocket 由来でない更新（JS RPC 経由）の origin */
 const RPC_ORIGIN: object = Object.freeze({ source: "rpc" });
 
-export type WebSocketAttachment = {
-  roomId: string;
-  connectedAt: Date;
-};
+export type { SessionAttachment } from "./session";
 
 export type YDurableObjectsAppType = ReturnType<typeof createApp>;
 
@@ -29,8 +28,7 @@ export class YDurableObjects<T extends Env> extends DurableObject<
   });
   protected doc = new WSSharedDoc();
   protected storage: YSqliteStorage;
-  protected sessions = new Map<WebSocket, () => void>();
-  private awarenessClients = new Set<number>();
+  protected sessions = new SessionRegistry();
 
   constructor(
     public state: DurableObjectState,
@@ -58,12 +56,9 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     });
     this.doc.awareness.on(
       "update",
-      async ({ added, removed, updated }: AwarenessChanges) => {
-        for (const client of [...added, ...updated]) {
-          this.awarenessClients.add(client);
-        }
-        for (const client of removed) {
-          this.awarenessClients.delete(client);
+      ({ added, updated }: AwarenessChanges, origin: unknown) => {
+        if (origin instanceof WebSocket) {
+          this.sessions.track(origin, [...added, ...updated]);
         }
       },
     );
@@ -75,8 +70,9 @@ export class YDurableObjects<T extends Env> extends DurableObject<
     const server = pair[1];
     server.serializeAttachment({
       roomId,
-      connectedAt: new Date(),
-    } satisfies WebSocketAttachment);
+      connectedAt: Date.now(),
+      clientIds: [],
+    } satisfies SessionAttachment);
 
     this.state.acceptWebSocket(server);
     this.registerWebSocket(server);
@@ -118,20 +114,22 @@ export class YDurableObjects<T extends Env> extends DurableObject<
 
   protected registerWebSocket(ws: WebSocket) {
     setupWSConnection(ws, this.doc);
-    const s = this.doc.notify(ws, (message) => {
+    const dispose = this.doc.notify(ws, (message) => {
       ws.send(message);
     });
-    this.sessions.set(ws, s);
+    this.sessions.add(ws, dispose);
   }
 
   protected async unregisterWebSocket(ws: WebSocket) {
     try {
-      const dispose = this.sessions.get(ws);
-      dispose?.();
-      this.sessions.delete(ws);
-      const clientIds = this.awarenessClients;
-
-      removeAwarenessStates(this.doc.awareness, Array.from(clientIds), null);
+      // この接続が所有する clientID だけを削除する。
+      // 部屋全体の clientID を削除すると他の参加者の presence まで消える。
+      removeAwarenessStates(
+        this.doc.awareness,
+        this.sessions.clientIdsOf(ws),
+        null,
+      );
+      this.sessions.remove(ws);
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error(e);

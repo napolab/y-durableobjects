@@ -1,15 +1,40 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { hc } from "hono/client";
+import {
+  createEncoder,
+  toUint8Array,
+  writeVarUint,
+  writeVarUint8Array,
+} from "lib0/encoding";
 import { expect, describe, it } from "vitest";
+import { Awareness, encodeAwarenessUpdate } from "y-protocols/awareness";
 import { Doc, encodeStateAsUpdate } from "yjs";
 
 import { YDurableObjects } from "../yjs";
+import { messageType } from "../yjs/message-type";
 import { YSqliteStorage } from "../yjs/storage";
 
 import { createSyncMessage, createYDocMessage } from "./helper";
 
 import type { YDurableObjectsAppType } from "../yjs";
 import type { InternalYDurableObject } from "../yjs/internal";
+
+// Encodes a real awareness protocol message, the way an actual client would.
+// Sending this through webSocketMessage() is the only way to exercise the
+// production path that decides ownership: WSSharedDoc.update() passes the
+// receiving WebSocket as `origin` into applyAwarenessUpdate(), which is what
+// the awareness "update" handler in onStart() branches on with
+// `origin instanceof WebSocket`.
+const createAwarenessMessage = (awareness: Awareness) => {
+  const encoder = createEncoder();
+  writeVarUint(encoder, messageType.awareness);
+  writeVarUint8Array(
+    encoder,
+    encodeAwarenessUpdate(awareness, [awareness.clientID]),
+  );
+
+  return toUint8Array(encoder);
+};
 
 describe("YDurableObjects", () => {
   it("initializes correctly", async () => {
@@ -130,7 +155,7 @@ describe("YDurableObjects", () => {
     await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
       const roomId = "room1";
       await instance.createRoom(roomId);
-      const [server] = Array.from(instance.sessions.entries()).at(0)!;
+      const [server] = Array.from(instance.sessions.sockets());
 
       await instance.webSocketError(server);
 
@@ -145,11 +170,63 @@ describe("YDurableObjects", () => {
     await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
       const roomId = "room1";
       await instance.createRoom(roomId);
-      const [server] = Array.from(instance.sessions.entries()).at(0)!;
+      const [server] = Array.from(instance.sessions.sockets());
 
       await instance.webSocketClose(server);
 
       expect(instance.sessions.size).toBe(0);
+    });
+  });
+
+  it("keeps other clients' awareness when one connection closes", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      await instance.createRoom("room1");
+      await instance.createRoom("room1");
+      const [first, second] = Array.from(instance.sessions.sockets());
+
+      instance.sessions.track(first, [1]);
+      instance.sessions.track(second, [2]);
+      instance.doc.awareness.setLocalStateField("user", { name: "a" });
+
+      await instance.webSocketClose(first);
+
+      // first の clientId だけが除去され、second の所有分は残る
+      expect(instance.sessions.clientIdsOf(second)).toEqual([2]);
+      expect(instance.sessions.size).toBe(1);
+    });
+  });
+
+  it("derives awareness ownership from the WebSocket origin observed at runtime", async () => {
+    const id = env.Y_DURABLE_OBJECTS.newUniqueId();
+    const stub = env.Y_DURABLE_OBJECTS.get(id);
+
+    await runInDurableObject(stub, async (instance: InternalYDurableObject) => {
+      await instance.createRoom("room1");
+      const [server] = Array.from(instance.sessions.sockets());
+
+      // Simulate a remote peer announcing its presence, exactly as a real
+      // Yjs client would over the wire.
+      const remoteDoc = new Doc();
+      const remoteAwareness = new Awareness(remoteDoc);
+      remoteAwareness.setLocalStateField("user", { name: "remote" });
+
+      const message = createAwarenessMessage(remoteAwareness);
+      await instance.webSocketMessage(server, message.slice(0).buffer);
+
+      // sessions.track() is only ever called from the awareness "update"
+      // handler wired in onStart(), and only when `origin instanceof
+      // WebSocket` is true. This test never calls sessions.track() itself,
+      // so if that instanceof check silently failed to match (e.g. because
+      // WebSocketPair sockets, or the sockets returned by
+      // state.getWebSockets() after hibernation, are not real WebSocket
+      // instances in this runtime), clientIdsOf(server) would stay empty
+      // here and the assertion below would fail.
+      expect(instance.sessions.clientIdsOf(server)).toEqual([
+        remoteAwareness.clientID,
+      ]);
     });
   });
 });
