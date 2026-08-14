@@ -97,7 +97,12 @@ export class WSSharedDoc extends Doc implements Notification {
     this.listeners.set(origin, listener);
 
     return () => {
-      this.listeners.delete(origin);
+      // A later notify() for the same origin overwrites this entry; only
+      // remove it if it's still the listener *this* call registered, so an
+      // earlier unsubscribe can't delete a newer listener for the same origin.
+      if (this.listeners.get(origin) === listener) {
+        this.listeners.delete(origin);
+      }
     };
   }
 

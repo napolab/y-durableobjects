@@ -87,6 +87,24 @@ describe("WSSharedDoc", () => {
       expect(mockListener).toHaveBeenCalledTimes(2);
       expect(anotherListener).toHaveBeenCalledTimes(1);
     });
+
+    it("does not let an earlier unsubscribe for an origin remove a later listener registered for that same origin", () => {
+      const sharedOrigin = {};
+      const firstListener = vi.fn();
+      const secondListener = vi.fn();
+
+      const unsubscribeFirst = doc.notify(sharedOrigin, firstListener);
+      // A second notify() for the same origin overwrites the first entry.
+      doc.notify(sharedOrigin, secondListener);
+
+      // This should be a no-op: it registered `firstListener`, which is no
+      // longer the listener stored for `sharedOrigin`.
+      unsubscribeFirst();
+
+      doc.update(createSyncMessage(createYDocMessage("text3")), {});
+
+      expect(secondListener).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("Origin-aware routing", () => {
